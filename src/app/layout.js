@@ -1,4 +1,6 @@
 import "./globals.css";
+import { AuthProvider } from "../context/AuthContext";
+import ThemeRegistry from '../theme/ThemeRegistry';
 
 export const metadata = {
   title: "My App",
@@ -8,7 +10,13 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ThemeRegistry>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeRegistry>
+      </body>
     </html>
   );
 }

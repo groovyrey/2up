@@ -1,38 +1,32 @@
+"use client";
+
+import { useAuth } from "../context/AuthContext";
+import LoggedInPage from "../components/LoggedInPage";
+import LoggedOutPage from "../components/LoggedOutPage";
+import LoadingAnimation from "../components/LoadingAnimation";
+import { Box } from "@mui/material";
+
 export default function Home() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          minHeight: '100vh',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <LoadingAnimation />
+      </Box>
+    );
+  }
+
   return (
-    <main className="page main">
-      <header className="header">
-        <p>My App</p>
-        <a
-          href="https://github.com/username/my-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Code
-        </a>
-      </header>
-      <div className="intro">
-        <h1>My App</h1>
-        <p>Welcome to my new web app.</p>
-        <div className="ctas">
-          <a
-            className="primary"
-            href="https://github.com/username/my-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Star on GitHub
-          </a>
-          <a
-            className="secondary"
-            href="https://github.com/username/my-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Deploy
-          </a>
-        </div>
-      </div>
-    </main>
+    <>
+      {user ? <LoggedInPage /> : <LoggedOutPage />}
+    </>
   );
 }
