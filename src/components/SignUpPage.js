@@ -8,7 +8,7 @@ import {
 import { Container, Box, Typography, TextField, Button, Alert, InputAdornment } from "@mui/material";
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
-import ThemeSwitcher from "./ThemeSwitcher";
+
 import Link from "next/link";
 
 const FIREBASE_ERROR_MESSAGES = {
@@ -47,7 +47,7 @@ export default function SignUpPage() {
 
   return (
     <Container component="main" maxWidth="xs">
-      <ThemeSwitcher />
+      
       <Box
         sx={{
           marginTop: 8,

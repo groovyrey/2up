@@ -11,7 +11,7 @@ import { Container, Box, Typography, TextField, Button, Alert, Divider, InputAdo
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import GoogleIcon from '@mui/icons-material/Google';
-import ThemeSwitcher from "./ThemeSwitcher";
+
 import Link from "next/link";
 
 
@@ -62,7 +62,7 @@ export default function LoggedOutPage() {
 
   return (
     <Container component="main" maxWidth="xs">
-      <ThemeSwitcher />
+      
       <Box
         sx={{
           marginTop: 8,

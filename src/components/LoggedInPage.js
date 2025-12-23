@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { auth } from "../lib/firebase";
 import { signOut } from "firebase/auth";
 import { Container, Box, Typography, Button } from "@mui/material";
-import ThemeSwitcher from "./ThemeSwitcher";
+
 
 export default function LoggedInPage() {
   const { user } = useAuth();
@@ -19,7 +19,7 @@ export default function LoggedInPage() {
 
   return (
     <Container component="main" maxWidth="xs">
-      <ThemeSwitcher />
+      
       <Box
         sx={{
           marginTop: 8,
