@@ -10,7 +10,14 @@ if (!admin.apps.length) {
       credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
     });
   } else {
-    console.error('Firebase Admin SDK could not be initialized. GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.');
+    try {
+      const serviceAccount = require('../../cred.json');
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    } catch (error) {
+      console.error('Firebase Admin SDK could not be initialized. GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set, and cred.json was not found or was invalid.', error);
+    }
   }
 }
 
