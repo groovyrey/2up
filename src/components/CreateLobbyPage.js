@@ -28,6 +28,7 @@ export default function CreateLobbyPage() {
   const [lobbyName, setLobbyName] = useState('');
   const [isPublic, setIsPublic] = useState('true');
   const [password, setPassword] = useState('');
+  const [gameType, setGameType] = useState('Tic-Tac-Toe'); // New state for game selection
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -65,6 +66,7 @@ export default function CreateLobbyPage() {
       ownerName: displayName,
       players: {}, // Players will be added by presence system
       status: 'waiting', // Initial lobby status
+      gameType: gameType, // Add selected game type
     };
 
     if (isPublic === 'false') {
@@ -139,6 +141,21 @@ export default function CreateLobbyPage() {
               required
             />
           )}
+
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="game-type-label">Game Type</InputLabel>
+            <Select
+              labelId="game-type-label"
+              id="game-type-select"
+              value={gameType}
+              label="Game Type"
+              onChange={(e) => setGameType(e.target.value)}
+            >
+              <MenuItem value="Tic-Tac-Toe">Tic-Tac-Toe</MenuItem>
+              {/* Add more game types here as needed */}
+            </Select>
+          </FormControl>
+
           {error && <Typography color="error" sx={{ my: 2 }}>{error}</Typography>}
           <Button
             type="submit"

@@ -138,7 +138,7 @@ export default function LobbiesPage() {
                 </ListItemIcon>
                 <ListItemText
                   primary={lobby.name}
-                  secondary={`${lobby.players ? Object.keys(lobby.players).length : 0} / ${lobby.maxPlayers} players | Game: ${lobby.game}`}
+                  secondary={`${lobby.players ? Object.keys(lobby.players).length : 0} / ${lobby.maxPlayers} players | Game: ${lobby.gameType || 'Not Selected'}`}
                 />
               </ListItem>
             ))

@@ -163,10 +163,41 @@ export default function LobbyRoomPage({ lobbyId }) {
     }
 
     try {
-      // For now, we will just remove the lobby as game system is being removed.
+      const gamesRef = ref(db, 'games');
+      const newGameRef = push(gamesRef); // Generate a unique ID for the new game
+      const gameId = newGameRef.key;
+
+      // Initialize game state based on gameType
+      let initialGameState = {};
+      if (lobby.gameType === 'Tic-Tac-Toe') {
+        initialGameState = {
+          board: Array(9).fill(null),
+          players: Object.keys(lobby.players), // Store UIDs of players
+          currentPlayer: Object.keys(lobby.players)[0], // First player starts
+          status: 'playing',
+          winner: null,
+          moves: 0,
+        };
+      }
+      // Add more game types here
+
+      await set(newGameRef, {
+        lobbyId: lobby.id,
+        gameType: lobby.gameType,
+        createdAt: Date.now(),
+        ...initialGameState,
+      });
+
+      // Update the lobby to link to the new game and change status
       const lobbyRef = ref(db, `lobbies/${lobby.id}`);
-      await remove(lobbyRef);
-      router.push('/lobbies');
+      await set(lobbyRef, {
+        ...lobby,
+        gameId: gameId,
+        status: 'playing',
+      });
+
+      // Redirect all players to the game page
+      router.push(`/games/${gameId}`);
 
     } catch (e) {
       console.error('Failed to start game:', e);
@@ -210,7 +241,7 @@ export default function LobbyRoomPage({ lobbyId }) {
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
             <Typography variant="h4" gutterBottom>
-              {lobby.game}
+              {lobby.gameType}
             </Typography>
             <Box>
               {lobby.status === 'waiting' && (
