@@ -15,9 +15,6 @@ export default function ThemeSwitcher() {
   return (
     <Box
       sx={{
-        position: 'absolute',
-        top: 16,
-        right: 16,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

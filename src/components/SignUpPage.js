@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { auth } from "../lib/firebase";
-import {
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
-import { Container, Box, Typography, TextField, Button, Alert, InputAdornment } from "@mui/material";
+import { Container, Box, Typography, TextField, Button, Alert, InputAdornment, Paper } from "@mui/material";
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
-
+import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // Import useRouter
 
 const FIREBASE_ERROR_MESSAGES = {
   'auth/invalid-email': 'Please enter a valid email address.',
@@ -32,32 +29,52 @@ const getFriendlyErrorMessage = (errorCode) => {
 export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState(null);
+  const router = useRouter(); // Initialize useRouter
 
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push('/'); // Redirect to login page after successful signup
+      } else {
+        setError(data.message || 'Failed to sign up.');
+      }
     } catch (error) {
-      setError(getFriendlyErrorMessage(error.code));
+      setError('Network error. Please try again.');
       console.error("Sign up error:", error);
     }
   };
 
   return (
     <Container component="main" maxWidth="xs">
-      
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Typography component="h1" variant="h5">
-          Sign Up
+      <Paper elevation={3} sx={{ p: 4, mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Image
+          src="/2up-logo.png"
+          alt="2up logo"
+          width={100}
+          height={100}
+        />
+        <Typography component="h1" variant="h5" sx={{mt: 2}}>
+          Create an Account
         </Typography>
         <Box component="form" sx={{ mt: 1 }}>
           <TextField
@@ -98,6 +115,25 @@ export default function SignUpPage() {
               ),
             }}
           />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="confirmPassword"
+            label="Confirm Password"
+            type="password"
+            id="confirmPassword"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
           {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
           <Button
             type="submit"
@@ -114,11 +150,11 @@ export default function SignUpPage() {
               variant="outlined"
               sx={{ mb: 2 }}
             >
-              Back to Sign In
+              Already have an account? Sign In
             </Button>
           </Link>
         </Box>
-      </Box>
+      </Paper>
     </Container>
   );
 }

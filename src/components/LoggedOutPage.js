@@ -1,19 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { auth } from "../lib/firebase";
+import Image from "next/image";
 import {
-  signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
-import { Container, Box, Typography, TextField, Button, Alert, Divider, InputAdornment } from "@mui/material";
+import { auth } from "../lib/firebase"; // Keep auth for Google Sign-In
+import { Container, Box, Typography, TextField, Button, Alert, Divider, InputAdornment, Paper } from "@mui/material";
 import EmailIcon from '@mui/icons-material/Email';
 import LockIcon from '@mui/icons-material/Lock';
 import GoogleIcon from '@mui/icons-material/Google';
 
 import Link from "next/link";
-
+import { useRouter } from "next/navigation"; // Import useRouter
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 const FIREBASE_ERROR_MESSAGES = {
   'auth/invalid-email': 'Please enter a valid email address.',
@@ -37,14 +39,35 @@ export default function LoggedOutPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const router = useRouter();
+  const { refreshSession } = useAuth(); // Destructure refreshSession
 
   const handleSignIn = async (e) => {
     e.preventDefault();
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Use client-side Firebase to get ID token
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const idToken = await userCredential.user.getIdToken();
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        refreshSession(); // Refresh session after successful login
+        router.push('/'); // Redirect to home page after successful login
+      } else {
+        setError(data.message || 'Failed to sign in.');
+      }
     } catch (error) {
-      setError(getFriendlyErrorMessage(error.code));
+      setError(getFriendlyErrorMessage(error.code) || 'Network error. Please try again.');
       console.error("Sign in error:", error);
     }
   };
@@ -53,26 +76,42 @@ export default function LoggedOutPage() {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        refreshSession(); // Refresh session after successful Google login
+        router.push('/'); // Redirect to home page after successful login
+      } else {
+        setError(data.message || 'Failed to sign in with Google.');
+      }
     } catch (error) {
-      setError(getFriendlyErrorMessage(error.code));
+      setError(getFriendlyErrorMessage(error.code) || 'Network error. Please try again.');
       console.error("Google sign in error:", error);
     }
   };
 
   return (
     <Container component="main" maxWidth="xs">
-      
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Typography component="h1" variant="h5">
-          Welcome
+      <Paper elevation={3} sx={{ p: 4, mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Image
+          src="/2up-logo.png"
+          alt="2up logo"
+          width={100}
+          height={100}
+        />
+        <Typography component="h1" variant="h5" sx={{ mt: 2 }}>
+          Welcome Back!
         </Typography>
         <Box component="form" sx={{ mt: 1 }}>
           <TextField
@@ -129,7 +168,7 @@ export default function LoggedOutPage() {
               variant="outlined"
               sx={{ mb: 2 }}
             >
-              Sign Up
+              Don't have an account? Sign Up
             </Button>
           </Link>
           <Divider>OR</Divider>
@@ -144,7 +183,7 @@ export default function LoggedOutPage() {
             Sign In with Google
           </Button>
         </Box>
-      </Box>
+      </Paper>
     </Container>
   );
 }
