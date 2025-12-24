@@ -2,7 +2,11 @@ import * as admin from 'firebase-admin';
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(require('./luloyorg-firebase-adminsdk-h6m0t-0c59f44f31.json'))
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    })
   });
 }
 
