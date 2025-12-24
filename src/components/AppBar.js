@@ -20,9 +20,14 @@ export default function AppAppBar() {
         </Link>
         <Box sx={{ flexGrow: 1 }} />
         {user && (
-          <Button color="inherit" onClick={logout}>
-            Sign Out
-          </Button>
+          <>
+            <Link href="/lobbies" passHref>
+              <Button color="inherit">Lobbies</Button>
+            </Link>
+            <Button color="inherit" onClick={logout}>
+              Sign Out
+            </Button>
+          </>
         )}
         <ThemeSwitcher />
       </Toolbar>
