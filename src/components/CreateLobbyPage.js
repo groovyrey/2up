@@ -21,6 +21,8 @@ import {
   MenuItem,
   InputLabel
 } from '@mui/material';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
 
 export default function CreateLobbyPage() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -163,8 +165,14 @@ export default function CreateLobbyPage() {
               label="Game Type"
               onChange={(e) => setGameType(e.target.value)}
             >
-              <MenuItem value="Tic-Tac-Toe">Tic-Tac-Toe</MenuItem>
-              <MenuItem value="Rock, Paper, Scissors">Rock, Paper, Scissors</MenuItem>
+              <MenuItem value="Tic-Tac-Toe">
+                <GridOnIcon sx={{ mr: 1 }} />
+                Tic-Tac-Toe
+              </MenuItem>
+              <MenuItem value="Rock, Paper, Scissors">
+                <SportsKabaddiIcon sx={{ mr: 1 }} />
+                Rock, Paper, Scissors
+              </MenuItem>
               {/* Add more game types here as needed */}
             </Select>
           </FormControl>

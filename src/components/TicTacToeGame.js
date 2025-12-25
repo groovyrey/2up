@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { db, auth } from '@/lib/firebase'; // Import auth
 import { ref, update, get, onDisconnect, remove } from 'firebase/database';
 import { Container, Box, Button, Typography, Paper, Grid, CircularProgress } from '@mui/material';
+import GridOnIcon from '@mui/icons-material/GridOn';
 import * as Ably from 'ably';
 
 export default function TicTacToeGame({ gameId, initialGameState }) {
@@ -242,29 +243,30 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
 
   const renderSquare = (index) => (
     <Button
-      key={index} // Add the key prop here
-      variant="outlined"
+      key={index}
+      variant="text"
       sx={{
-        width: '80px',
-        height: '80px',
-        fontSize: '2.5rem',
+        width: '100px',
+        height: '100px',
+        fontSize: '3.5rem',
         fontWeight: 'bold',
-        border: '2px solid', // Add border
-        borderColor: (theme) => theme.palette.divider, // Border color
-        color: (theme) => gameState.board[index] === 'X' ? theme.palette.primary.main : theme.palette.secondary.main,
-        backgroundColor: (theme) =>
-          gameState.winningLine && gameState.winningLine.includes(index)
-            ? theme.palette.success.light // Highlight winning line
-            : 'transparent',
+        color: gameState.board[index] === 'X' ? 'primary.main' : 'secondary.main',
+        border: '2px solid',
+        borderColor: 'divider',
+        borderRadius: 0,
+        // Remove borders to form a grid
+        borderTop: (index < 3) ? 'none' : '',
+        borderBottom: (index > 5) ? 'none' : '',
+        borderLeft: (index % 3 === 0) ? 'none' : '',
+        borderRight: (index % 3 === 2) ? 'none' : '',
+        backgroundColor: gameState.winningLine?.includes(index) ? 'success.light' : 'background.paper',
+        transition: 'background-color 0.3s',
         '&:hover': {
-          backgroundColor: (theme) =>
-            gameState.winningLine && gameState.winningLine.includes(index)
-              ? theme.palette.success.light
-              : theme.palette.action.hover,
+          backgroundColor: gameState.winningLine?.includes(index) ? 'success.light' : 'action.hover',
         },
       }}
       onClick={() => handleCellClick(index)}
-      disabled={!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== '' || gameState.currentPlayer !== user?.uid || gameState.overallMatchWinner || gameState.status === 'abandoned'}
+      disabled={!user || authLoading || !!gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== '' || gameState.currentPlayer !== user?.uid || !!gameState.overallMatchWinner || gameState.status === 'abandoned'}
     >
       {gameState.board[index]}
     </Button>
@@ -411,33 +413,53 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 4 }}>
-      <Paper elevation={3} sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="h4" gutterBottom>
+    <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, textAlign: 'center', backgroundColor: '#f7f9fc' }}>
+        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <GridOnIcon sx={{ mr: 1, fontSize: '2rem' }} />
           Tic-Tac-Toe
         </Typography>
-        {/* Dedicated Score Display */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-around', my: 2 }}>
-          {playerX && (
-            <Typography variant="h6" component="span" sx={{ fontWeight: gameState.currentPlayer === Object.keys(gameState.players).find(uid => gameState.players[uid].mark === 'X') ? 'bold' : 'normal', color: (theme) => theme.palette.primary.main }}>
-              {playerX.uid === user?.uid ? 'You' : playerX.displayName} ({playerX.mark}): {playerX.score || 0}
-            </Typography>
-          )}
-          {playerO && (
-            <Typography variant="h6" component="span" sx={{ fontWeight: gameState.currentPlayer === Object.keys(gameState.players).find(uid => gameState.players[uid].mark === 'O') ? 'bold' : 'normal', color: (theme) => theme.palette.secondary.main }}>
-              {playerO.uid === user?.uid ? 'You' : playerO.displayName} ({playerO.mark}): {playerO.score || 0}
-            </Typography>
-          )}
-        </Box>
-        <Typography variant="h5" gutterBottom color="text.secondary">
+
+        <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ my: 2 }}>
+          <Grid item xs={5}>
+            <Paper elevation={2} sx={{ p: 2, backgroundColor: gameState.currentPlayer === playerX?.uid ? 'primary.light' : 'background.paper', transition: 'background-color 0.3s' }}>
+              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerX?.uid ? 'bold' : 'normal', color: 'primary.contrastText' }}>
+                {playerX?.uid === user?.uid ? 'You' : playerX?.displayName} (X)
+              </Typography>
+              <Typography variant="h5" sx={{ color: 'primary.contrastText' }}>Score: {playerX?.score || 0}</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={2}><Typography variant="h4">VS</Typography></Grid>
+          <Grid item xs={5}>
+            <Paper elevation={2} sx={{ p: 2, backgroundColor: gameState.currentPlayer === playerO?.uid ? 'secondary.light' : 'background.paper', transition: 'background-color 0.3s' }}>
+              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerO?.uid ? 'bold' : 'normal', color: 'secondary.contrastText' }}>
+                {playerO?.uid === user?.uid ? 'You' : playerO?.displayName} (O)
+              </Typography>
+              <Typography variant="h5" sx={{ color: 'secondary.contrastText' }}>Score: {playerO?.score || 0}</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        <Typography variant="h5" gutterBottom color="text.secondary" sx={{ my: 3, minHeight: '3rem' }}>
           {getStatusMessage()}
         </Typography>
-        <Box sx={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px', mt: 2 }}>
+
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          maxWidth: '300px',
+          mx: 'auto',
+          border: '3px solid',
+          borderColor: 'primary.main',
+          borderRadius: '8px',
+          overflow: 'hidden',
+        }}>
           {Array(9).fill(null).map((_, i) => renderSquare(i))}
         </Box>
-        <Box sx={{ mt: 3 }}>
-          <Button variant="contained" onClick={handleReturnToLobbies}>
-            Back to Lobbies
+
+        <Box sx={{ mt: 4 }}>
+          <Button variant="contained" color="error" onClick={handleReturnToLobbies}>
+            Leave Game
           </Button>
         </Box>
       </Paper>

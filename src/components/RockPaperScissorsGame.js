@@ -6,6 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { db, auth } from '@/lib/firebase';
 import { ref, update, get, onDisconnect, remove } from 'firebase/database';
 import { Container, Box, Button, Typography, Paper, Grid, CircularProgress } from '@mui/material';
+import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
+import HardwareIcon from '@mui/icons-material/Hardware';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ContentCutIcon from '@mui/icons-material/ContentCut';
 import * as Ably from 'ably';
 
 export default function RockPaperScissorsGame({ gameId, initialGameState }) {
@@ -170,43 +174,82 @@ export default function RockPaperScissorsGame({ gameId, initialGameState }) {
   const myMove = gameState.moves ? gameState.moves[user.uid] : null;
   const otherPlayerMove = otherPlayerUid && gameState.moves ? gameState.moves[otherPlayerUid] : null;
 
+  const getMoveIcon = (move) => {
+    switch (move) {
+      case 'rock':
+        return <HardwareIcon sx={{ mr: 1 }} />;
+      case 'paper':
+        return <DescriptionIcon sx={{ mr: 1 }} />;
+      case 'scissors':
+        return <ContentCutIcon sx={{ mr: 1 }} />;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <Container maxWidth="sm" sx={{ mt: 4 }}>
-      <Paper elevation={3} sx={{ p: 3, textAlign: 'center' }}>
-        <Typography variant="h4" gutterBottom>Rock, Paper, Scissors</Typography>
-        <Grid container spacing={2} justifyContent="center" alignItems="center">
-          <Grid item xs={5}>
-            <Typography variant="h6">{gameState.players[user.uid]?.displayName}</Typography>
-            <Typography variant="h5">Score: {gameState.scores ? gameState.scores[user.uid] : 0}</Typography>
+    <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Paper elevation={3} sx={{ p: { xs: 2, sm: 3 }, textAlign: 'center', backgroundColor: '#f7f9fc' }}>
+        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <SportsKabaddiIcon sx={{ mr: 1, fontSize: '2rem' }} />
+          Rock, Paper, Scissors
+        </Typography>
+
+        <Grid container spacing={2} justifyContent="center" alignItems="stretch" sx={{ my: 2 }}>
+          {/* Player 1 Card */}
+          <Grid item xs={12} sm={5}>
+            <Paper elevation={2} sx={{ p: 2, height: '100%', backgroundColor: gameState.roundWinner === user.uid ? 'success.light' : 'background.paper', transition: 'background-color 0.3s' }}>
+              <Typography variant="h6">{gameState.players[user.uid]?.displayName}</Typography>
+              <Typography variant="h5">Score: {gameState.scores ? gameState.scores[user.uid] : 0}</Typography>
+            </Paper>
           </Grid>
-          <Grid item xs={2}><Typography variant="h4">VS</Typography></Grid>
-          <Grid item xs={5}>
+
+          <Grid item xs={12} sm={2} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography variant="h4">VS</Typography>
+          </Grid>
+
+          {/* Player 2 Card */}
+          <Grid item xs={12} sm={5}>
             {otherPlayerUid && (
-              <>
+              <Paper elevation={2} sx={{ p: 2, height: '100%', backgroundColor: gameState.roundWinner === otherPlayerUid ? 'success.light' : 'background.paper', transition: 'background-color 0.3s' }}>
                 <Typography variant="h6">{gameState.players[otherPlayerUid]?.displayName}</Typography>
                 <Typography variant="h5">Score: {gameState.scores ? gameState.scores[otherPlayerUid] : 0}</Typography>
-              </>
+              </Paper>
             )}
           </Grid>
         </Grid>
-        <Box sx={{ my: 4 }}>
-          {!myMove && <Typography variant="h6">Choose your move!</Typography>}
-          {myMove && !otherPlayerMove && <Typography variant="h6">Waiting for opponent...</Typography>}
-          {gameState.roundWinner && (
-            <Typography variant="h6">
-              {gameState.roundWinner === 'draw' ? "It's a draw!" : `${gameState.players[gameState.roundWinner]?.displayName} wins the round!`}
-            </Typography>
-          )}
+
+        {/* Moves Display */}
+        <Box sx={{ my: 4, display: 'flex', justifyContent: 'space-around', alignItems: 'center', minHeight: '100px' }}>
+          <Box>
+            {myMove && getMoveIcon(myMove)}
+          </Box>
+          <Box>
+            {otherPlayerMove && gameState.roundWinner && getMoveIcon(otherPlayerMove)}
+            {otherPlayerMove && !gameState.roundWinner && <Typography variant="h5">?</Typography>}
+          </Box>
         </Box>
+
+        <Typography variant="h5" gutterBottom color="text.secondary" sx={{ my: 3, minHeight: '3rem' }}>
+          {!myMove && "Choose your move!"}
+          {myMove && !otherPlayerMove && "Waiting for opponent..."}
+          {gameState.roundWinner && (gameState.roundWinner === 'draw' ? "It's a draw!" : `${gameState.players[gameState.roundWinner]?.displayName} wins the round!`)}
+        </Typography>
+
+        {/* Action Buttons */}
         <Box>
           {['rock', 'paper', 'scissors'].map(move => (
-            <Button key={move} variant="contained" sx={{ m: 1 }} onClick={() => handleMove(move)} disabled={!!myMove}>
+            <Button key={move} variant="contained" size="large" sx={{ m: 1 }} onClick={() => handleMove(move)} disabled={!!myMove}>
+              {getMoveIcon(move)}
               {move}
             </Button>
           ))}
         </Box>
-        <Box sx={{ mt: 3 }}>
-          <Button variant="contained" onClick={handleReturnToLobbies}>Back to Lobbies</Button>
+
+        <Box sx={{ mt: 4 }}>
+          <Button variant="contained" color="error" onClick={handleReturnToLobbies}>
+            Leave Game
+          </Button>
         </Box>
       </Paper>
     </Container>

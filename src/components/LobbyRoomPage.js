@@ -18,7 +18,8 @@ import {
   Grid,
   Chip
 } from '@mui/material';
-import CrownIcon from '@mui/icons-material/EmojiEvents';
+import GridOnIcon from '@mui/icons-material/GridOn';
+import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
 
 export default function LobbyRoomPage({ lobbyId }) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -254,12 +255,24 @@ export default function LobbyRoomPage({ lobbyId }) {
   const isOwner = user && user.uid === lobby.ownerId;
   const players = lobby.players ? Object.entries(lobby.players) : [];
 
+  const getGameIcon = (gameType) => {
+    switch (gameType) {
+      case 'Tic-Tac-Toe':
+        return <GridOnIcon sx={{ mr: 1 }} />;
+      case 'Rock, Paper, Scissors':
+        return <SportsKabaddiIcon sx={{ mr: 1 }} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Paper elevation={3} sx={{ p: 3 }}>
         <Grid container spacing={3}>
           <Grid item xs={12} md={8}>
             <Typography variant="h4" gutterBottom>
+              {getGameIcon(lobby.gameType)}
               {lobby.gameType}
             </Typography>
             <Box>
@@ -284,7 +297,7 @@ export default function LobbyRoomPage({ lobbyId }) {
               {players.map(([uid, player]) => (
                 <ListItem key={uid} divider>
                   <ListItemText primary={player.displayName} />
-                  {uid === lobby.ownerId && <CrownIcon color="warning" />}
+                  {uid === lobby.ownerId && <span role="img" aria-label="crown">👑</span>}
                 </ListItem>
               ))}
             </List>
