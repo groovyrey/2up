@@ -81,9 +81,9 @@ export default function RockPaperScissorsGame({ gameId, initialGameState }) {
   }, [gameId, user, authLoading]);
 
   const handleMove = async (move) => {
-    if (!user || authLoading || gameState.moves[user.uid]) return;
+    if (!user || authLoading || (gameState.moves && gameState.moves[user.uid])) return;
 
-    const newMoves = { ...gameState.moves, [user.uid]: move };
+    const newMoves = { ...(gameState.moves || {}), [user.uid]: move };
     let updatedGameState = { ...gameState, moves: newMoves };
 
     const playerUids = Object.keys(gameState.players);
@@ -118,15 +118,21 @@ export default function RockPaperScissorsGame({ gameId, initialGameState }) {
     }
 
     if (updatedGameState.roundWinner) {
-      setTimeout(() => {
-        const resetState = {
-            ...updatedGameState,
-            moves: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
-            roundWinner: null
-        };
-        update(gameRef, resetState);
-        if (channelRef.current) {
-          channelRef.current.publish('game-update', resetState);
+      setTimeout(async () => {
+        const gameRef = ref(db, `games/${gameId}`);
+        const snapshot = await get(gameRef);
+        if (snapshot.exists()) {
+            const latestGameState = snapshot.val();
+            const playerUids = Object.keys(latestGameState.players);
+            const resetState = {
+                ...latestGameState,
+                moves: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
+                roundWinner: null
+            };
+            update(gameRef, resetState);
+            if (channelRef.current) {
+              channelRef.current.publish('game-update', resetState);
+            }
         }
       }, 3000);
     }
