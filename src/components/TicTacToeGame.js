@@ -16,7 +16,7 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   const ablyRef = useRef(null); // Ref to store the Ably client instance
 
   // Determine current player's mark ('X' or 'O')
-  const playerIndex = gameState.players.indexOf(user?.uid);
+  const playerIndex = Object.keys(gameState.players).indexOf(user?.uid);
   const currentPlayerMark = playerIndex === 0 ? 'X' : 'O';
   const opponentPlayerMark = playerIndex === 0 ? 'O' : 'X';
 
@@ -62,7 +62,14 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     return () => {
       if (channelRef.current) {
         channelRef.current.unsubscribe('game-update');
-        ablyRef.current.channels.release(channelName); // channelName is now accessible
+        // Detach the channel before releasing it
+        channelRef.current.detach((err) => {
+          if (err) {
+            console.error(`Error detaching Ably channel ${channelName}:`, err);
+          } else {
+            ablyRef.current.channels.release(channelName);
+          }
+        });
       }
       if (ablyRef.current) {
         ablyRef.current.close();
@@ -86,9 +93,18 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   };
 
   const handleCellClick = async (index) => {
+    console.log("handleCellClick called for index:", index);
+    console.log("Debug - user:", user);
+    console.log("Debug - authLoading:", authLoading);
+    console.log("Debug - gameState.winner:", gameState.winner);
+    console.log("Debug - gameState.status:", gameState.status);
+    console.log("Debug - gameState.board[index]:", gameState.board[index]);
+    console.log("Debug - gameState.currentPlayer:", gameState.currentPlayer);
+    console.log("Debug - user.uid:", user?.uid);
+
     if (!user || authLoading || gameState.winner || gameState.status !== 'playing') return;
-    if (gameState.board[index] !== null) return; // Cell already taken
-    if (gameState.currentPlayer !== user.uid) return; // Not current player's turn
+    if (gameState.board[index] !== '') return; // Cell already taken (changed from null to '' due to previous fix)
+    if (gameState.currentPlayer !== user.uid) return;
 
     const newBoard = [...gameState.board];
     newBoard[index] = currentPlayerMark; // 'X' or 'O'
@@ -97,8 +113,9 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     const moves = gameState.moves + 1;
     const isDraw = !winner && moves === 9;
 
-    const nextPlayerIndex = (gameState.players.indexOf(user.uid) + 1) % gameState.players.length;
-    const nextPlayerUid = gameState.players[nextPlayerIndex];
+    const playerUids = Object.keys(gameState.players);
+    const nextPlayerIndex = (playerUids.indexOf(user.uid) + 1) % playerUids.length;
+    const nextPlayerUid = playerUids[nextPlayerIndex];
 
     const updatedGameState = {
       ...gameState,
@@ -121,6 +138,7 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
 
   const renderSquare = (index) => (
     <Button
+      key={index} // Add the key prop here
       variant="outlined"
       sx={{
         width: '80px',
@@ -130,25 +148,27 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
         color: (theme) => gameState.board[index] === 'X' ? theme.palette.primary.main : theme.palette.secondary.main,
       }}
       onClick={() => handleCellClick(index)}
-      disabled={!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== null || gameState.currentPlayer !== user?.uid}
+      disabled={!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== '' || gameState.currentPlayer !== user?.uid}
     >
       {gameState.board[index]}
     </Button>
   );
 
   const getStatusMessage = () => {
-    const playerXUid = gameState.players[0];
-    const playerOUid = gameState.players[1];
+    const playerX = gameState.players[Object.keys(gameState.players)[0]]; // Player who is 'X'
+    const playerO = gameState.players[Object.keys(gameState.players)[1]]; // Player who is 'O'
 
     if (gameState.winner) {
-      const winnerUid = gameState.winner === 'X' ? playerXUid : playerOUid;
-      const winnerDisplayName = winnerUid === user?.uid ? user.displayName : 'Opponent';
+      const winnerPlayer = gameState.winner === 'X' ? playerX : playerO;
+      const winnerDisplayName = winnerPlayer.displayName;
       return `Winner: ${winnerDisplayName} (${gameState.winner})`;
     } else if (gameState.status === 'finished' && gameState.moves === 9) {
       return 'Draw!';
     } else if (gameState.status === 'playing') {
-      const currentPlayerDisplayName = gameState.currentPlayer === user?.uid ? user.displayName : (gameState.currentPlayer === playerXUid ? 'Player X' : 'Player O');
-      const currentPlayerSymbol = gameState.currentPlayer === user?.uid ? currentPlayerMark : (gameState.currentPlayer === playerXUid ? 'X' : 'O');
+      const currentPlayerObject = gameState.players[gameState.currentPlayer];
+      const currentPlayerDisplayName = currentPlayerObject ? currentPlayerObject.displayName : 'Unknown Player';
+      const currentPlayerSymbol = gameState.currentPlayer === Object.keys(gameState.players)[0] ? 'X' : 'O'; // Determine symbol based on position in players array
+
       return `Current Player: ${currentPlayerDisplayName} (${currentPlayerSymbol})`;
     }
     return 'Waiting for game to start...';

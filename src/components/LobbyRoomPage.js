@@ -147,6 +147,7 @@ export default function LobbyRoomPage({ lobbyId }) {
   };
 
   const handleStartGame = async () => {
+    console.log("handleStartGame called!"); // Added for debugging
     if (!user || !lobby || user.uid !== lobby.ownerId) {
       alert('Only the lobby owner can start the game.');
       return;
@@ -171,22 +172,26 @@ export default function LobbyRoomPage({ lobbyId }) {
       let initialGameState = {};
       if (lobby.gameType === 'Tic-Tac-Toe') {
         initialGameState = {
-          board: Array(9).fill(null),
-          players: Object.keys(lobby.players), // Store UIDs of players
+          board: ['', '', '', '', '', '', '', '', ''],
+          players: lobby.players, // Store full player objects (UID -> {displayName, ...})
           currentPlayer: Object.keys(lobby.players)[0], // First player starts
           status: 'playing',
           winner: null,
           moves: 0,
         };
       }
+      console.log('Initial Game State:', initialGameState); // Debug log
       // Add more game types here
 
-      await set(newGameRef, {
+      const gameDataToWrite = {
         lobbyId: lobby.id,
         gameType: lobby.gameType,
         createdAt: Date.now(),
         ...initialGameState,
-      });
+      };
+      console.log('Game Data to Write to Firebase:', gameDataToWrite); // Debug log
+
+      await set(newGameRef, gameDataToWrite);
 
       // Update the lobby to link to the new game and change status
       const lobbyRef = ref(db, `lobbies/${lobby.id}`);

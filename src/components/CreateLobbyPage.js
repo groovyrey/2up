@@ -69,6 +69,14 @@ export default function CreateLobbyPage() {
       gameType: gameType, // Add selected game type
     };
 
+    // Initialize game-specific data
+    if (gameType === 'Tic-Tac-Toe') {
+      newLobby.board = ['', '', '', '', '', '', '', '', '']; // Initialize Tic-Tac-Toe board with empty strings
+      newLobby.currentPlayer = user.uid; // Set the lobby creator as the first player
+      newLobby.moves = 0;
+      newLobby.winner = null;
+    }
+
     if (isPublic === 'false') {
       newLobby.password = password;
     }
