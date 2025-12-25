@@ -127,7 +127,14 @@ export default function ProfilePage({ userId }) {
               <ListItemIcon>
                 <EmailOutlinedIcon />
               </ListItemIcon>
-              <ListItemText primary="Email" secondary={profileData.email} />
+              <ListItemText
+                primary="Email"
+                secondary={
+                  profileData.hideEmail && !isCurrentUserProfile
+                    ? 'Hidden'
+                    : profileData.email
+                }
+              />
             </ListItem>
             {/* Add more profile fields here as ListItems */}
           </List>

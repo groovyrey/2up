@@ -5,6 +5,7 @@ import LoggedInPage from "../components/LoggedInPage";
 import LoggedOutPage from "../components/LoggedOutPage";
 import LoadingAnimation from "../components/LoadingAnimation";
 import { Box } from "@mui/material";
+import MainLayout from "@/components/MainLayout";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -26,7 +27,7 @@ export default function Home() {
 
   return (
     <>
-      {user ? <LoggedInPage /> : <LoggedOutPage />}
+      {user ? <MainLayout><LoggedInPage /></MainLayout> : <LoggedOutPage />}
     </>
   );
 }

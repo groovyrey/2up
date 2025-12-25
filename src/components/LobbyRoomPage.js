@@ -16,10 +16,23 @@ import {
   ListItemText,
   Button,
   Grid,
-  Chip
+  Chip,
+  Avatar,
+  ListItemAvatar,
+  Alert,
+  LinearProgress,
+  Card,
+  CardContent,
+  Divider,
+  Tooltip
 } from '@mui/material';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
+import PersonIcon from '@mui/icons-material/Person';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
+import CrownIcon from '@mui/icons-material/EmojiEvents'; // Crown icon for owner
 
 export default function LobbyRoomPage({ lobbyId }) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -31,7 +44,7 @@ export default function LobbyRoomPage({ lobbyId }) {
   const presenceUnsubscribe = useRef(null);
   const didJoin = useRef(false);
 
-  // Listener for lobby data for UI rendering
+  // Main listener for lobby data
   useEffect(() => {
     if (!lobbyId) return;
     const lobbyRef = ref(db, `lobbies/${lobbyId}`);
@@ -39,8 +52,9 @@ export default function LobbyRoomPage({ lobbyId }) {
       if (snapshot.exists()) {
         setLobby({ id: snapshot.key, ...snapshot.val() });
       } else {
-        setError('This lobby no longer exists.');
+        setError('This lobby no longer exists. You will be redirected.');
         setLobby(null);
+        setTimeout(() => router.push('/lobbies'), 3000);
       }
       setLoading(false);
     }, (err) => {
@@ -50,22 +64,17 @@ export default function LobbyRoomPage({ lobbyId }) {
     });
 
     return () => unsubscribe();
-  }, [lobbyId]);
+  }, [lobbyId, router]);
 
-  // Presence system
+  // Presence system to join/leave lobby
   useEffect(() => {
-    if (!lobbyId || !user || !profile) {
-      return;
-    }
+    if (!lobbyId || !user || !profile) return;
 
     const lobbyRef = ref(db, `lobbies/${lobbyId}`);
     const playerRef = ref(db, `lobbies/${lobbyId}/players/${user.uid}`);
 
     get(lobbyRef).then((snapshot) => {
-      if (!snapshot.exists()) {
-        // This case is handled by the main listener, but good to have a safeguard.
-        return;
-      }
+      if (!snapshot.exists()) return;
 
       const lobbyData = snapshot.val();
       const players = lobbyData.players || {};
@@ -76,7 +85,6 @@ export default function LobbyRoomPage({ lobbyId }) {
         return;
       }
 
-      // If check passes, mark as joined and set up presence
       didJoin.current = true;
       const presenceRef = ref(db, '.info/connected');
       
@@ -86,6 +94,7 @@ export default function LobbyRoomPage({ lobbyId }) {
           const displayName = profile.displayName || user.displayName || 'Anonymous';
           set(playerRef, {
             displayName: displayName,
+            photoURL: profile.photoURL || user.photoURL || '', // Store photoURL
             joinedAt: Date.now()
           });
         }
@@ -93,33 +102,15 @@ export default function LobbyRoomPage({ lobbyId }) {
     });
 
     return () => {
-      if (presenceUnsubscribe.current) {
-        presenceUnsubscribe.current();
-      }
+      if (presenceUnsubscribe.current) presenceUnsubscribe.current();
       if (didJoin.current) {
         const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-        // Use a transaction to safely update/delete the lobby on graceful leave
         runTransaction(lobbyRef, (currentData) => {
-          if (currentData === null) {
-            return null; // Lobby already deleted
-          }
-
-          const players = currentData.players || {};
-          const numPlayers = Object.keys(players).length;
+          if (!currentData) return null;
           const isOwner = user.uid === currentData.ownerId;
-
-          // Condition 1: If the owner is leaving, delete the whole lobby.
-          if (isOwner) {
-            return null; // Returning null deletes the data at the reference.
-          }
-
-          // Condition 2: If this is the last player leaving, delete the lobby.
-          if (numPlayers <= 1 && players[user.uid]) {
-            return null;
-          }
-
-          // Otherwise, just remove the current player.
-          if (players[user.uid]) {
+          if (isOwner) return null;
+          if (Object.keys(currentData.players || {}).length <= 1) return null;
+          if (currentData.players && currentData.players[user.uid]) {
             delete currentData.players[user.uid];
           }
           return currentData;
@@ -128,201 +119,191 @@ export default function LobbyRoomPage({ lobbyId }) {
     };
   }, [lobbyId, user, profile, router]);
 
-
-  const handleLeaveLobby = () => {
-    // The useEffect cleanup will handle the database removal.
-    // We just need to navigate away.
-    router.push('/lobbies');
-  };
+  const handleLeaveLobby = () => router.push('/lobbies');
 
   const handleDeleteLobby = async () => {
     if (!user || !lobby || user.uid !== lobby.ownerId) return;
-    const lobbyRef = ref(db, `lobbies/${lobby.id}`);
-    try {
-      await remove(lobbyRef);
-      router.push('/lobbies');
-    } catch (err) {
-      console.error('Failed to delete lobby:', err);
-      alert('An error occurred while trying to delete the lobby.');
-    }
+    await remove(ref(db, `lobbies/${lobby.id}`));
+    router.push('/lobbies');
   };
 
   const handleStartGame = async () => {
-    console.log("handleStartGame called!"); // Added for debugging
-    if (!user || !lobby || user.uid !== lobby.ownerId) {
-      alert('Only the lobby owner can start the game.');
-      return;
-    }
-
-    if (lobby.status !== 'waiting') {
-      alert('Game has already started or finished.');
-      return;
-    }
-
+    if (!user || !lobby || user.uid !== lobby.ownerId || lobby.status !== 'waiting') return;
     if (Object.keys(lobby.players || {}).length < lobby.maxPlayers) {
-      alert(`Need ${lobby.maxPlayers} players to start the game.`);
+      setError(`Need ${lobby.maxPlayers} players to start the game.`);
       return;
     }
 
     try {
-      const gamesRef = ref(db, 'games');
-      const newGameRef = push(gamesRef); // Generate a unique ID for the new game
+      const newGameRef = push(ref(db, 'games'));
       const gameId = newGameRef.key;
-
-      // Initialize game state based on gameType
       let initialGameState = {};
+      const playersData = Object.fromEntries(
+        Object.entries(lobby.players).map(([uid, player]) => [uid, { ...player, uid }])
+      );
+
       if (lobby.gameType === 'Tic-Tac-Toe') {
-        const playersWithUid = Object.fromEntries(
-          Object.entries(lobby.players).map(([uid, player]) => [uid, { ...player, uid }])
-        );
         initialGameState = {
-          board: ['', '', '', '', '', '', '', '', ''],
-          players: playersWithUid, // Store full player objects (UID -> {displayName, uid, ...})
-          currentPlayer: Object.keys(lobby.players)[0], // First player starts
+          board: Array(9).fill(null),
+          players: playersData,
+          currentPlayer: Object.keys(lobby.players)[0],
           status: 'playing',
           winner: null,
           moves: 0,
         };
       } else if (lobby.gameType === 'Rock, Paper, Scissors') {
-        const playerUids = Object.keys(lobby.players);
         initialGameState = {
-          players: Object.fromEntries(
-            Object.entries(lobby.players).map(([uid, player]) => [uid, { ...player, uid }])
-          ),
-          scores: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}),
-          moves: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
+          players: playersData,
+          scores: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}),
+          moves: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
           roundWinner: null,
           status: 'playing',
         };
       }
-      console.log('Initial Game State:', initialGameState); // Debug log
-      // Add more game types here
 
-      const gameDataToWrite = {
+      await set(newGameRef, {
         lobbyId: lobby.id,
         gameType: lobby.gameType,
         createdAt: Date.now(),
         ...initialGameState,
-      };
-      console.log('Game Data to Write to Firebase:', gameDataToWrite); // Debug log
-
-      await set(newGameRef, gameDataToWrite);
-
-      // Update the lobby to link to the new game and change status
-      const lobbyRef = ref(db, `lobbies/${lobby.id}`);
-      await set(lobbyRef, {
-        ...lobby,
-        gameId: gameId,
-        status: 'playing',
       });
 
-      // Redirect all players to the game page
-      router.push(`/games/${gameId}`);
-
+      await runTransaction(ref(db, `lobbies/${lobby.id}`), (lobbyData) => {
+        if (lobbyData) {
+          lobbyData.gameId = gameId;
+          lobbyData.status = 'playing';
+        }
+        return lobbyData;
+      });
+      
+      // The gameId update on the lobby will trigger a redirect for all players
     } catch (e) {
       console.error('Failed to start game:', e);
-      alert('An error occurred while trying to start the game.');
+      setError('An error occurred while trying to start the game.');
     }
   };
+  
+  // Redirect to game if gameId appears on lobby
+  useEffect(() => {
+    if (lobby?.gameId) {
+      router.push(`/games/${lobby.gameId}`);
+    }
+  }, [lobby, router]);
 
   if (authLoading || loading) {
-    return (
-      <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-        <CircularProgress />
-      </Container>
-    );
+    return <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Container>;
   }
 
   if (error) {
     return (
-      <Container>
-        <Typography variant="h5" align="center" color="error" sx={{ mt: 4 }}>
-          {error}
-        </Typography>
-        <Box textAlign="center" mt={2}>
-          <Button variant="contained" onClick={() => router.push('/lobbies')}>
+      <Container maxWidth="sm" sx={{ mt: 8 }}>
+        <Alert severity="error" action={
+          <Button color="inherit" size="small" onClick={() => router.push('/lobbies')}>
             Back to Lobbies
           </Button>
-        </Box>
+        }>
+          {error}
+        </Alert>
       </Container>
     );
   }
 
-  if (!lobby) {
-    return null; // Should be handled by the error state
-  }
-  
+  if (!lobby) return null;
+
   const isOwner = user && user.uid === lobby.ownerId;
   const players = lobby.players ? Object.entries(lobby.players) : [];
+  const playerProgress = (players.length / lobby.maxPlayers) * 100;
 
   const getGameIcon = (gameType) => {
     switch (gameType) {
-      case 'Tic-Tac-Toe':
-        return <GridOnIcon sx={{ mr: 1 }} />;
-      case 'Rock, Paper, Scissors':
-        return <SportsKabaddiIcon sx={{ mr: 1 }} />;
-      default:
-        return null;
+      case 'Tic-Tac-Toe': return <GridOnIcon />;
+      case 'Rock, Paper, Scissors': return <SportsKabaddiIcon />;
+      default: return null;
     }
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      <Paper elevation={3} sx={{ p: 3 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Typography variant="h4" gutterBottom>
-              {getGameIcon(lobby.gameType)}
-              {lobby.gameType}
-            </Typography>
-            <Box>
-              {lobby.status === 'waiting' && (
-                <Typography variant="h6" align="center" sx={{ mt: 4 }}>
-                  Waiting for players to join and owner to start the game...
-                </Typography>
-              )}
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      <Paper elevation={4} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ p: 3, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
+          <Grid container justifyContent="space-between" alignItems="center">
+            <Grid item>
+              <Typography variant="h4" component="h1">{lobby.name}</Typography>
+              <Box display="flex" alignItems="center" mt={1}>
+                {getGameIcon(lobby.gameType)}
+                <Typography variant="h6" sx={{ ml: 1 }}>{lobby.gameType}</Typography>
+              </Box>
+            </Grid>
+            <Grid item>
+              <Chip label={lobby.isPublic ? 'Public' : 'Private'} color="secondary" />
+            </Grid>
+          </Grid>
+        </Box>
+        
+        <Grid container>
+          <Grid item xs={12} md={7} sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>Waiting Room</Typography>
+            <Box sx={{ textAlign: 'center', p: 4, border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
+              <Typography variant="h6">
+                Waiting for players...
+              </Typography>
+              <Typography color="text.secondary">
+                The game will begin once the lobby is full and the owner starts it.
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+                <Box sx={{ width: '100%', mr: 1 }}>
+                  <LinearProgress variant="determinate" value={playerProgress} />
+                </Box>
+                <Box sx={{ minWidth: 35 }}>
+                  <Typography variant="body2" color="text.secondary">{`${players.length}/${lobby.maxPlayers}`}</Typography>
+                </Box>
+              </Box>
             </Box>
           </Grid>
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h5" gutterBottom>
-                {lobby.name}
-              </Typography>
-              <Chip label={lobby.isPublic ? 'Public' : 'Private'} />
-            </Box>
-            <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-              Players ({players.length} / {lobby.maxPlayers})
-            </Typography>
-            <List>
-              {players.map(([uid, player]) => (
-                <ListItem key={uid} divider>
-                  <ListItemText primary={player.displayName} />
-                  {uid === lobby.ownerId && <span role="img" aria-label="crown">👑</span>}
-                </ListItem>
-              ))}
-            </List>
-            <Box sx={{ mt: 3 }}>
-              <Button variant="outlined" color="error" onClick={handleLeaveLobby} fullWidth>
-                Leave Lobby
-              </Button>
-              {isOwner && lobby.status === 'waiting' && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={handleStartGame}
-                  fullWidth
-                  sx={{ mt: 1 }}
-                  disabled={Object.keys(lobby.players || {}).length < lobby.maxPlayers}
-                >
-                  Start Game
+
+          <Grid item xs={12} md={5} sx={{ p: 3, bgcolor: 'background.paper' }}>
+            <Card variant="outlined">
+              <CardContent>
+                <Typography variant="h6" gutterBottom>Players</Typography>
+                <List dense>
+                  {players.map(([uid, player]) => (
+                    <ListItem key={uid} secondaryAction={
+                      uid === lobby.ownerId ? <Tooltip title="Lobby Owner"><CrownIcon color="warning" /></Tooltip> : null
+                    }>
+                      <ListItemAvatar>
+                        <Avatar src={player.photoURL}>
+                          {!player.photoURL && <PersonIcon />}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText primary={player.displayName} />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+              <Divider />
+              <Box sx={{ p: 2 }}>
+                {isOwner && (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<PlayCircleFilledIcon />}
+                    onClick={handleStartGame}
+                    fullWidth
+                    disabled={players.length < lobby.maxPlayers}
+                  >
+                    Start Game
+                  </Button>
+                )}
+                <Button variant="outlined" color="warning" startIcon={<ExitToAppIcon />} onClick={handleLeaveLobby} fullWidth sx={{ mt: 1 }}>
+                  Leave Lobby
                 </Button>
-              )}
-              {isOwner && (
-                <Button variant="contained" color="error" onClick={handleDeleteLobby} fullWidth sx={{ mt: 1 }}>
-                  Delete Lobby
-                </Button>
-              )}
-            </Box>
+                {isOwner && (
+                  <Button variant="text" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteLobby} fullWidth sx={{ mt: 1 }}>
+                    Delete Lobby
+                  </Button>
+                )}
+              </Box>
+            </Card>
           </Grid>
         </Grid>
       </Paper>

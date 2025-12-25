@@ -144,7 +144,7 @@ export default function SignUpPage() {
           >
             Sign Up
           </Button>
-          <Link href="/" passHref>
+          <Link href="/login" passHref>
             <Button
               fullWidth
               variant="outlined"
