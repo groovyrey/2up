@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { CircularProgress, Box, Typography, Button } from '@mui/material';
 import TicTacToeGame from '@/components/TicTacToeGame'; // Will create this next
+import RockPaperScissorsGame from '@/components/RockPaperScissorsGame';
 
 export default function GameRoom() {
   const params = useParams();
@@ -71,6 +72,8 @@ export default function GameRoom() {
   switch (game.gameType) {
     case 'Tic-Tac-Toe':
       return <TicTacToeGame gameId={gameId} initialGameState={game} />;
+    case 'Rock, Paper, Scissors':
+      return <RockPaperScissorsGame gameId={gameId} initialGameState={game} />;
     // Add more cases for other game types
     default:
       return (

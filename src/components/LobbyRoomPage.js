@@ -171,13 +171,27 @@ export default function LobbyRoomPage({ lobbyId }) {
       // Initialize game state based on gameType
       let initialGameState = {};
       if (lobby.gameType === 'Tic-Tac-Toe') {
+        const playersWithUid = Object.fromEntries(
+          Object.entries(lobby.players).map(([uid, player]) => [uid, { ...player, uid }])
+        );
         initialGameState = {
           board: ['', '', '', '', '', '', '', '', ''],
-          players: lobby.players, // Store full player objects (UID -> {displayName, ...})
+          players: playersWithUid, // Store full player objects (UID -> {displayName, uid, ...})
           currentPlayer: Object.keys(lobby.players)[0], // First player starts
           status: 'playing',
           winner: null,
           moves: 0,
+        };
+      } else if (lobby.gameType === 'Rock, Paper, Scissors') {
+        const playerUids = Object.keys(lobby.players);
+        initialGameState = {
+          players: Object.fromEntries(
+            Object.entries(lobby.players).map(([uid, player]) => [uid, { ...player, uid }])
+          ),
+          scores: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}),
+          moves: playerUids.reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
+          roundWinner: null,
+          status: 'playing',
         };
       }
       console.log('Initial Game State:', initialGameState); // Debug log

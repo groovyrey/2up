@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { db, auth } from '@/lib/firebase'; // Import auth
-import { ref, update, get, onDisconnect } from 'firebase/database';
+import { ref, update, get, onDisconnect, remove } from 'firebase/database';
 import { Container, Box, Button, Typography, Paper, Grid, CircularProgress } from '@mui/material';
 import * as Ably from 'ably';
 
@@ -14,6 +14,23 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   const [gameState, setGameState] = useState(initialGameState);
   const channelRef = useRef(null);
   const ablyRef = useRef(null); // Ref to store the Ably client instance
+
+  // Delete lobby once all players have joined the game
+  useEffect(() => {
+    if (gameState.lobbyId && gameState.players) {
+      const players = Object.values(gameState.players);
+      const allPlayersJoined = players.length > 0 && players.every(p => p.hasLeft === false);
+
+      if (allPlayersJoined) {
+        const lobbyRef = ref(db, `lobbies/${gameState.lobbyId}`);
+        remove(lobbyRef).then(() => {
+          // Remove lobbyId from game state to prevent re-deletion
+          const gameRef = ref(db, `games/${gameId}`);
+          update(gameRef, { lobbyId: null });
+        });
+      }
+    }
+  }, [gameState.lobbyId, gameState.players, gameId]);
 
   let currentPlayerMark = null;
   let opponentPlayerMark = null;
@@ -48,9 +65,15 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
           setGameState(message.data);
         });
 
-        // Fetch the latest game state from Firebase when component mounts
         // This ensures consistency if a player joins late or refreshes
         const gameRef = ref(db, `games/${gameId}`);
+        const playerRef = ref(db, `games/${gameId}/players/${user.uid}`);
+
+        // Set up onDisconnect to mark the player as having left
+        onDisconnect(playerRef).update({ hasLeft: true });
+
+        // Mark player as not having left when they connect
+        update(playerRef, { hasLeft: false });
         get(gameRef).then((snapshot) => {
           if (snapshot.exists()) {
             const fetchedGameState = snapshot.val();
@@ -276,6 +299,47 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     return 'Waiting for game to start...';
   };
 
+  // Automatically reset the board after a round is finished
+  useEffect(() => {
+    if (gameState.status === 'finished' && !gameState.overallMatchWinner) {
+      const timer = setTimeout(() => {
+        // Ensure only one player (e.g., the host or player 'X') resets the board
+        // to avoid both players trying to do it simultaneously.
+        const playerX = Object.values(gameState.players).find(p => p.mark === 'X');
+        if (user?.uid === playerX?.uid) {
+          resetBoard();
+        }
+      }, 3000); // 3-second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.status, gameState.overallMatchWinner, user, gameState.players]);
+
+  // Automatically delete the game after a match is won
+  useEffect(() => {
+    if (gameState.overallMatchWinner) {
+      const timer = setTimeout(() => {
+        const gameRef = ref(db, `games/${gameId}`);
+        remove(gameRef);
+        router.push('/lobbies');
+      }, 10000); // 10-second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.overallMatchWinner, gameId, router]);
+
+  // Automatically delete the game if all players have left
+  useEffect(() => {
+    if (gameState.players) {
+      const players = Object.values(gameState.players);
+      if (players.length > 0 && players.every(p => p.hasLeft)) {
+        const gameRef = ref(db, `games/${gameId}`);
+        remove(gameRef);
+        router.push('/lobbies');
+      }
+    }
+  }, [gameState.players, gameId, router]);
+
   // Redirect if game is abandoned and current user is the winner
   useEffect(() => {
     if (gameState.status === 'abandoned' && gameState.overallMatchWinner === user?.uid) {
@@ -319,12 +383,28 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   const handleReturnToLobbies = async () => {
     if (!user || !gameId) return;
 
+    const gameRef = ref(db, `games/${gameId}`);
     try {
-      const gameRef = ref(db, `games/${gameId}`);
-      await update(gameRef, { status: 'ended' });
+      // Get the current game state to check if the other player has left
+      const snapshot = await get(gameRef);
+      if (snapshot.exists()) {
+        const currentGame = snapshot.val();
+        const otherPlayer = Object.values(currentGame.players).find(p => p.uid !== user.uid);
+
+        // If the other player has already left, or if there's no other player, delete the game
+        if (!otherPlayer || otherPlayer.hasLeft) {
+          await remove(gameRef);
+        } else {
+          // Otherwise, just mark this player as having left
+          const playerRef = ref(db, `games/${gameId}/players/${user.uid}`);
+          await update(playerRef, { hasLeft: true });
+          // Also update the game status to abandoned
+          await update(gameRef, { status: 'abandoned' });
+        }
+      }
       router.push('/lobbies');
     } catch (error) {
-      console.error("Error ending game and returning to lobbies:", error);
+      console.error("Error handling leaving game:", error);
       // Even if there's an error, try to navigate to lobbies
       router.push('/lobbies');
     }
@@ -356,16 +436,6 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
           {Array(9).fill(null).map((_, i) => renderSquare(i))}
         </Box>
         <Box sx={{ mt: 3 }}>
-          {gameState.status === 'finished' && !gameState.overallMatchWinner && (
-            <Button variant="contained" onClick={resetBoard} sx={{ mr: 2 }} disabled={gameState.status === 'abandoned'}>
-              Play Next Round
-            </Button>
-          )}
-          {gameState.overallMatchWinner && (
-            <Button variant="contained" onClick={resetBoard} sx={{ mr: 2 }} disabled={gameState.status === 'abandoned'}>
-              Start New Match
-            </Button>
-          )}
           <Button variant="contained" onClick={handleReturnToLobbies}>
             Back to Lobbies
           </Button>

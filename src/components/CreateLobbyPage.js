@@ -75,6 +75,10 @@ export default function CreateLobbyPage() {
       newLobby.currentPlayer = user.uid; // Set the lobby creator as the first player
       newLobby.moves = 0;
       newLobby.winner = null;
+    } else if (gameType === 'Rock, Paper, Scissors') {
+      newLobby.scores = { player1: 0, player2: 0 };
+      newLobby.moves = { player1: null, player2: null };
+      newLobby.roundWinner = null;
     }
 
     if (isPublic === 'false') {
@@ -160,6 +164,7 @@ export default function CreateLobbyPage() {
               onChange={(e) => setGameType(e.target.value)}
             >
               <MenuItem value="Tic-Tac-Toe">Tic-Tac-Toe</MenuItem>
+              <MenuItem value="Rock, Paper, Scissors">Rock, Paper, Scissors</MenuItem>
               {/* Add more game types here as needed */}
             </Select>
           </FormControl>
