@@ -25,7 +25,11 @@ export default function GameRoom() {
     const gameRef = ref(db, `games/${gameId}`);
     const unsubscribe = onValue(gameRef, (snapshot) => {
       if (snapshot.exists()) {
-        setGame({ id: snapshot.key, ...snapshot.val() });
+        const gameData = { id: snapshot.key, ...snapshot.val() };
+        if (!gameData.board) {
+          gameData.board = Array(9).fill(''); // Initialize board if missing
+        }
+        setGame(gameData);
       } else {
         setError('Game not found or has ended.');
         setGame(null);

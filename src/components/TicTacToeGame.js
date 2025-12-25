@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { db, auth } from '@/lib/firebase'; // Import auth
-import { ref, update, get } from 'firebase/database';
+import { ref, update, get, onDisconnect } from 'firebase/database';
 import { Container, Box, Button, Typography, Paper, Grid, CircularProgress } from '@mui/material';
 import * as Ably from 'ably';
 
@@ -15,10 +15,13 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
   const channelRef = useRef(null);
   const ablyRef = useRef(null); // Ref to store the Ably client instance
 
-  // Determine current player's mark ('X' or 'O')
-  const playerIndex = Object.keys(gameState.players).indexOf(user?.uid);
-  const currentPlayerMark = playerIndex === 0 ? 'X' : 'O';
-  const opponentPlayerMark = playerIndex === 0 ? 'O' : 'X';
+  let currentPlayerMark = null;
+  let opponentPlayerMark = null;
+
+  if (user && gameState && gameState.players) {
+    currentPlayerMark = gameState.players[user.uid]?.mark;
+    opponentPlayerMark = currentPlayerMark === 'X' ? 'O' : 'X';
+  }
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -27,19 +30,21 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
 
     const initializeAbly = async () => {
       try {
-        const idToken = await auth.currentUser.getIdToken(); // Get Firebase ID token
+        const idToken = await auth.currentUser.getIdToken();
 
-        ablyRef.current = new Ably.Realtime({
+        const ablyClient = new Ably.Realtime({ // Use a local variable for Ably client
           authUrl: '/api/create-ably-token',
           authHeaders: {
             'Authorization': `Bearer ${idToken}`
           },
-          clientId: user.uid, // Set Ably clientId to Firebase UID
+          clientId: user.uid,
         });
+        ablyRef.current = ablyClient; // Assign to ref
 
-        channelRef.current = ablyRef.current.channels.get(channelName);
+        const channel = ablyClient.channels.get(channelName); // Use local variable for channel
+        channelRef.current = channel; // Assign to ref
 
-        channelRef.current.subscribe('game-update', (message) => {
+        channel.subscribe('game-update', (message) => {
           setGameState(message.data);
         });
 
@@ -48,7 +53,17 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
         const gameRef = ref(db, `games/${gameId}`);
         get(gameRef).then((snapshot) => {
           if (snapshot.exists()) {
-            setGameState(snapshot.val());
+            const fetchedGameState = snapshot.val();
+            // Ensure players have 'mark' and 'score' properties
+            const updatedPlayers = {};
+            Object.keys(fetchedGameState.players).forEach((uid, index) => {
+              updatedPlayers[uid] = {
+                ...fetchedGameState.players[uid],
+                mark: fetchedGameState.players[uid].mark || (index === 0 ? 'X' : 'O'), // Assign 'X' to first player, 'O' to second if not already set
+                score: fetchedGameState.players[uid].score || 0,
+              };
+            });
+            setGameState({ ...fetchedGameState, players: updatedPlayers });
           }
         }).catch(console.error);
 
@@ -60,19 +75,30 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     initializeAbly();
 
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe('game-update');
-        // Detach the channel before releasing it
-        channelRef.current.detach((err) => {
-          if (err) {
-            console.error(`Error detaching Ably channel ${channelName}:`, err);
-          } else {
-            ablyRef.current.channels.release(channelName);
+      const currentChannel = channelRef.current;
+      const currentAbly = ablyRef.current;
+
+      // Ably cleanup (immediate)
+      if (currentChannel) {
+        currentChannel.unsubscribe('game-update');
+        if (currentChannel.state === 'attached' || currentChannel.state === 'attaching') {
+          currentChannel.detach((err) => {
+            if (err) {
+              console.error(`Error detaching Ably channel ${channelName}:`, err);
+            } else {
+              if (currentAbly) { // Ensure currentAbly exists before releasing
+                currentAbly.channels.release(channelName);
+              }
+            }
+          });
+        } else {
+          if (currentAbly) { // Ensure currentAbly exists before releasing
+            currentAbly.channels.release(channelName);
           }
-        });
+        }
       }
-      if (ablyRef.current) {
-        ablyRef.current.close();
+      if (currentAbly) {
+        currentAbly.close();
       }
     };
   }, [gameId, user, authLoading]);
@@ -86,7 +112,7 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     for (let i = 0; i < lines.length; i++) {
       const [a, b, c] = lines[i];
       if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
+        return { winner: board[a], line: [a, b, c] };
       }
     }
     return null;
@@ -102,14 +128,16 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     console.log("Debug - gameState.currentPlayer:", gameState.currentPlayer);
     console.log("Debug - user.uid:", user?.uid);
 
-    if (!user || authLoading || gameState.winner || gameState.status !== 'playing') return;
+    if (!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.overallMatchWinner) return;
     if (gameState.board[index] !== '') return; // Cell already taken (changed from null to '' due to previous fix)
     if (gameState.currentPlayer !== user.uid) return;
 
     const newBoard = [...gameState.board];
     newBoard[index] = currentPlayerMark; // 'X' or 'O'
 
-    const winner = checkWinner(newBoard);
+    const winnerResult = checkWinner(newBoard);
+    const winner = winnerResult ? winnerResult.winner : null;
+    const winningLine = winnerResult ? winnerResult.line : null;
     const moves = gameState.moves + 1;
     const isDraw = !winner && moves === 9;
 
@@ -117,14 +145,67 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     const nextPlayerIndex = (playerUids.indexOf(user.uid) + 1) % playerUids.length;
     const nextPlayerUid = playerUids[nextPlayerIndex];
 
+    let updatedPlayers = { ...gameState.players };
+    let overallMatchWinner = null;
+
+    if (winner) {
+      const winnerUid = Object.keys(gameState.players).find(uid => gameState.players[uid].mark === winner);
+      if (winnerUid) {
+        updatedPlayers[winnerUid] = {
+          ...updatedPlayers[winnerUid],
+          score: (updatedPlayers[winnerUid].score || 0) + 1,
+        };
+        if (updatedPlayers[winnerUid].score >= 10) {
+          overallMatchWinner = winnerUid;
+        }
+      }
+    }
+
     const updatedGameState = {
       ...gameState,
       board: newBoard,
       moves: moves,
       currentPlayer: winner || isDraw ? null : nextPlayerUid,
-      winner: winner,
+      winner: winner, // This is the round winner
+      winningLine: winningLine, // New property for winning line
       status: winner || isDraw ? 'finished' : 'playing',
+      players: updatedPlayers, // Update players with new scores
+      overallMatchWinner: overallMatchWinner, // New property for overall match winner
     };
+
+    // Update Firebase
+    const gameRef = ref(db, `games/${gameId}`);
+    await update(gameRef, updatedGameState);
+
+    // Publish update to Ably
+    if (channelRef.current) {
+      channelRef.current.publish('game-update', updatedGameState);
+    }
+  };
+
+  const resetBoard = async () => {
+    const newBoard = Array(9).fill('');
+    const playerUids = Object.keys(gameState.players);
+    const startingPlayerUid = playerUids[Math.floor(Math.random() * playerUids.length)]; // Randomly choose starting player
+
+    const updatedGameState = {
+      ...gameState,
+      board: newBoard,
+      moves: 0,
+      winner: null, // Reset round winner
+      winningLine: null, // Reset winning line
+      status: 'playing',
+      currentPlayer: startingPlayerUid,
+      // Scores and overallMatchWinner persist
+    };
+
+    // If starting a new match after an overall winner, reset scores
+    if (gameState.overallMatchWinner) {
+      Object.keys(updatedGameState.players).forEach(uid => {
+        updatedGameState.players[uid].score = 0;
+      });
+      updatedGameState.overallMatchWinner = null;
+    }
 
     // Update Firebase
     const gameRef = ref(db, `games/${gameId}`);
@@ -145,34 +226,65 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
         height: '80px',
         fontSize: '2.5rem',
         fontWeight: 'bold',
+        border: '2px solid', // Add border
+        borderColor: (theme) => theme.palette.divider, // Border color
         color: (theme) => gameState.board[index] === 'X' ? theme.palette.primary.main : theme.palette.secondary.main,
+        backgroundColor: (theme) =>
+          gameState.winningLine && gameState.winningLine.includes(index)
+            ? theme.palette.success.light // Highlight winning line
+            : 'transparent',
+        '&:hover': {
+          backgroundColor: (theme) =>
+            gameState.winningLine && gameState.winningLine.includes(index)
+              ? theme.palette.success.light
+              : theme.palette.action.hover,
+        },
       }}
       onClick={() => handleCellClick(index)}
-      disabled={!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== '' || gameState.currentPlayer !== user?.uid}
+      disabled={!user || authLoading || gameState.winner || gameState.status !== 'playing' || gameState.board[index] !== '' || gameState.currentPlayer !== user?.uid || gameState.overallMatchWinner || gameState.status === 'abandoned'}
     >
       {gameState.board[index]}
     </Button>
   );
 
   const getStatusMessage = () => {
-    const playerX = gameState.players[Object.keys(gameState.players)[0]]; // Player who is 'X'
-    const playerO = gameState.players[Object.keys(gameState.players)[1]]; // Player who is 'O'
+    const opponentUid = Object.keys(gameState.players).find(uid => uid !== user?.uid);
+    const opponentPlayer = opponentUid ? gameState.players[opponentUid] : null;
 
-    if (gameState.winner) {
-      const winnerPlayer = gameState.winner === 'X' ? playerX : playerO;
-      const winnerDisplayName = winnerPlayer.displayName;
-      return `Winner: ${winnerDisplayName} (${gameState.winner})`;
+    if (gameState.status === 'abandoned') {
+      if (opponentPlayer && opponentPlayer.hasLeft) {
+        return `${opponentPlayer.displayName || 'Opponent'} has left the game. You win!`;
+      }
+      return 'Game abandoned.';
+    } else if (gameState.overallMatchWinner) {
+      const winnerPlayer = gameState.players[gameState.overallMatchWinner];
+      const winnerDisplayName = winnerPlayer.uid === user?.uid ? 'You' : winnerPlayer.displayName;
+      return `Match Winner: ${winnerDisplayName} with ${winnerPlayer.score} wins!`;
+    } else if (gameState.winner) {
+      const winnerPlayer = Object.values(gameState.players).find(p => p.mark === gameState.winner);
+      const winnerDisplayName = winnerPlayer.uid === user?.uid ? 'You' : winnerPlayer.displayName;
+      return `Round Winner: ${winnerDisplayName} (${gameState.winner})!`;
     } else if (gameState.status === 'finished' && gameState.moves === 9) {
-      return 'Draw!';
+      return `Draw!`;
     } else if (gameState.status === 'playing') {
       const currentPlayerObject = gameState.players[gameState.currentPlayer];
-      const currentPlayerDisplayName = currentPlayerObject ? currentPlayerObject.displayName : 'Unknown Player';
-      const currentPlayerSymbol = gameState.currentPlayer === Object.keys(gameState.players)[0] ? 'X' : 'O'; // Determine symbol based on position in players array
+      const currentPlayerDisplayName = currentPlayerObject.uid === user?.uid ? 'You' : (currentPlayerObject ? currentPlayerObject.displayName : 'Unknown Player');
+      const currentPlayerSymbol = currentPlayerObject ? currentPlayerObject.mark : '';
 
-      return `Current Player: ${currentPlayerDisplayName} (${currentPlayerSymbol})`;
+      return `Turn: ${currentPlayerDisplayName} (${currentPlayerSymbol})`;
     }
     return 'Waiting for game to start...';
   };
+
+  // Redirect if game is abandoned and current user is the winner
+  useEffect(() => {
+    if (gameState.status === 'abandoned' && gameState.overallMatchWinner === user?.uid) {
+      const timer = setTimeout(() => {
+        router.push('/lobbies');
+      }, 3000); // Redirect after 3 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.status, gameState.overallMatchWinner, user?.uid, router]);
 
   if (authLoading) {
     return (
@@ -192,7 +304,7 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     );
   }
 
-  if (!gameState || !gameState.board) {
+  if (!gameState || !gameState.board || !gameState.players) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -200,20 +312,61 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
     );
   }
 
+  // Define playerX and playerO here for use in JSX
+  const playerX = Object.values(gameState.players).find(p => p.mark === 'X');
+  const playerO = Object.values(gameState.players).find(p => p.mark === 'O');
+
+  const handleReturnToLobbies = async () => {
+    if (!user || !gameId) return;
+
+    try {
+      const gameRef = ref(db, `games/${gameId}`);
+      await update(gameRef, { status: 'ended' });
+      router.push('/lobbies');
+    } catch (error) {
+      console.error("Error ending game and returning to lobbies:", error);
+      // Even if there's an error, try to navigate to lobbies
+      router.push('/lobbies');
+    }
+  };
+
   return (
     <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Paper elevation={3} sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="h4" gutterBottom>
           Tic-Tac-Toe
         </Typography>
-        <Typography variant="h6" gutterBottom>
+        {/* Dedicated Score Display */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-around', my: 2 }}>
+          {playerX && (
+            <Typography variant="h6" component="span" sx={{ fontWeight: gameState.currentPlayer === Object.keys(gameState.players).find(uid => gameState.players[uid].mark === 'X') ? 'bold' : 'normal', color: (theme) => theme.palette.primary.main }}>
+              {playerX.uid === user?.uid ? 'You' : playerX.displayName} ({playerX.mark}): {playerX.score || 0}
+            </Typography>
+          )}
+          {playerO && (
+            <Typography variant="h6" component="span" sx={{ fontWeight: gameState.currentPlayer === Object.keys(gameState.players).find(uid => gameState.players[uid].mark === 'O') ? 'bold' : 'normal', color: (theme) => theme.palette.secondary.main }}>
+              {playerO.uid === user?.uid ? 'You' : playerO.displayName} ({playerO.mark}): {playerO.score || 0}
+            </Typography>
+          )}
+        </Box>
+        <Typography variant="h5" gutterBottom color="text.secondary">
           {getStatusMessage()}
         </Typography>
         <Box sx={{ display: 'inline-grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px', mt: 2 }}>
           {Array(9).fill(null).map((_, i) => renderSquare(i))}
         </Box>
         <Box sx={{ mt: 3 }}>
-          <Button variant="contained" onClick={() => router.push('/lobbies')}>
+          {gameState.status === 'finished' && !gameState.overallMatchWinner && (
+            <Button variant="contained" onClick={resetBoard} sx={{ mr: 2 }} disabled={gameState.status === 'abandoned'}>
+              Play Next Round
+            </Button>
+          )}
+          {gameState.overallMatchWinner && (
+            <Button variant="contained" onClick={resetBoard} sx={{ mr: 2 }} disabled={gameState.status === 'abandoned'}>
+              Start New Match
+            </Button>
+          )}
+          <Button variant="contained" onClick={handleReturnToLobbies}>
             Back to Lobbies
           </Button>
         </Box>
