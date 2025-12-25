@@ -423,19 +423,19 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
         <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ my: 2 }}>
           <Grid item xs={5}>
             <Paper elevation={2} sx={{ p: 2, backgroundColor: gameState.currentPlayer === playerX?.uid ? 'primary.light' : 'background.paper', transition: 'background-color 0.3s' }}>
-              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerX?.uid ? 'bold' : 'normal', color: 'primary.contrastText' }}>
+              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerX?.uid ? 'bold' : 'normal', color: gameState.currentPlayer === playerX?.uid ? 'primary.contrastText' : 'text.primary' }}>
                 {playerX?.uid === user?.uid ? 'You' : playerX?.displayName} (X)
               </Typography>
-              <Typography variant="h5" sx={{ color: 'primary.contrastText' }}>Score: {playerX?.score || 0}</Typography>
+              <Typography variant="h5" sx={{ color: gameState.currentPlayer === playerX?.uid ? 'primary.contrastText' : 'text.primary' }}>Score: {playerX?.score || 0}</Typography>
             </Paper>
           </Grid>
           <Grid item xs={2}><Typography variant="h4">VS</Typography></Grid>
           <Grid item xs={5}>
             <Paper elevation={2} sx={{ p: 2, backgroundColor: gameState.currentPlayer === playerO?.uid ? 'secondary.light' : 'background.paper', transition: 'background-color 0.3s' }}>
-              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerO?.uid ? 'bold' : 'normal', color: 'secondary.contrastText' }}>
+              <Typography variant="h6" sx={{ fontWeight: gameState.currentPlayer === playerO?.uid ? 'bold' : 'normal', color: gameState.currentPlayer === playerO?.uid ? 'secondary.contrastText' : 'text.primary' }}>
                 {playerO?.uid === user?.uid ? 'You' : playerO?.displayName} (O)
               </Typography>
-              <Typography variant="h5" sx={{ color: 'secondary.contrastText' }}>Score: {playerO?.score || 0}</Typography>
+              <Typography variant="h5" sx={{ color: gameState.currentPlayer === playerO?.uid ? 'secondary.contrastText' : 'text.primary' }}>Score: {playerO?.score || 0}</Typography>
             </Paper>
           </Grid>
         </Grid>
