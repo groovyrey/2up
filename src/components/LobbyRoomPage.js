@@ -169,8 +169,6 @@ export default function LobbyRoomPage({ lobbyId }) {
         }
         return lobbyData;
       });
-      // Delete the lobby after the game has successfully started
-      await remove(ref(db, `lobbies/${lobby.id}`));
     } catch (e) {
       console.error('Failed to start game:', e);
       setError('An error occurred while trying to start the game.');

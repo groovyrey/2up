@@ -13,6 +13,7 @@ export default function LobbyRoom() {
   const { id: lobbyId } = params;
 
   const [lobby, setLobby] = useState(null);
+  const [gameIdFromLobby, setGameIdFromLobby] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -27,16 +28,21 @@ export default function LobbyRoom() {
       if (snapshot.exists()) {
         const lobbyData = { id: snapshot.key, ...snapshot.val() };
         if (lobbyData.gameId) {
-          // If gameId exists, redirect to the game page
+          setGameIdFromLobby(lobbyData.gameId);
           router.replace(`/games/${lobbyData.gameId}`);
         } else {
           setLobby(lobbyData);
+          setGameIdFromLobby(null); // Clear if gameId is removed from lobby
         }
       } else {
         // Lobby might have been deleted (e.g., game started and lobby removed)
-        // Check if a game with this lobbyId exists or just redirect to lobbies list
-        // For now, redirect to lobbies list if lobby doesn't exist
-        router.replace('/lobbies');
+        if (gameIdFromLobby) {
+          // If we previously knew a gameId, redirect there
+          router.replace(`/games/${gameIdFromLobby}`);
+        } else {
+          // Otherwise, redirect to lobbies list
+          router.replace('/lobbies');
+        }
       }
       setLoading(false);
     }, (err) => {
@@ -46,7 +52,7 @@ export default function LobbyRoom() {
     });
 
     return () => unsubscribe();
-  }, [lobbyId, router]);
+  }, [lobbyId, router, gameIdFromLobby]);
 
   if (loading) {
     return (
