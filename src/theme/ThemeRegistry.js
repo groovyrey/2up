@@ -3,9 +3,9 @@ import * as React from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { NextAppDirEmotionCacheProvider } from './EmotionCache';
-import { Roboto } from 'next/font/google';
+import { Inter } from 'next/font/google';
 
-const roboto = Roboto({
+const inter = Inter({
   weight: ['300', '400', '500', '700'],
   subsets: ['latin'],
   display: 'swap',
@@ -14,7 +14,20 @@ const roboto = Roboto({
 export const ColorModeContext = React.createContext({ toggleColorMode: () => {} });
 
 export default function ThemeRegistry({ children }) {
-  const [mode, setMode] = React.useState('light');
+  const [mode, setMode] = React.useState('light'); // Default to light for SSR
+
+  React.useEffect(() => {
+    // Read from localStorage after component mounts on client
+    const storedMode = localStorage.getItem('themeMode');
+    if (storedMode) {
+      setMode(storedMode);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    // Save to localStorage whenever mode changes
+    localStorage.setItem('themeMode', mode);
+  }, [mode]);
 
   const colorMode = React.useMemo(
     () => ({
@@ -55,7 +68,7 @@ export default function ThemeRegistry({ children }) {
               }),
         },
         typography: {
-          fontFamily: roboto.style.fontFamily,
+          fontFamily: inter.style.fontFamily,
           h5: {
             fontWeight: 700,
           },

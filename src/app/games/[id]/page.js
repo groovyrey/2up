@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, update } from 'firebase/database';
 import { CircularProgress, Box, Typography, Button } from '@mui/material';
-import TicTacToeGame from '@/components/TicTacToeGame'; // Will create this next
+import TicTacToeGame from '@/components/TicTacToeGame';
 import RockPaperScissorsGame from '@/components/RockPaperScissorsGame';
+import ConnectFourGame from '@/components/ConnectFourGame';
 
 export default function GameRoom() {
   const params = useParams();
@@ -28,7 +29,14 @@ export default function GameRoom() {
       if (snapshot.exists()) {
         const gameData = { id: snapshot.key, ...snapshot.val() };
         if (!gameData.board) {
-          gameData.board = Array(9).fill(''); // Initialize board if missing
+          // Initialize board based on game type if missing
+          if (gameData.gameType === 'Tic-Tac-Toe') {
+            gameData.board = Array(9).fill('');
+          } else if (gameData.gameType === 'Connect Four') {
+            // Use the initialBoard structure from ConnectFourGame
+            gameData.board = Array(6).fill(0).map(() => Array(7).fill(0));
+          }
+          // Add other game types here if they need initial board setup
         }
         setGame(gameData);
       } else {
@@ -68,13 +76,24 @@ export default function GameRoom() {
     return null; // Should be handled by error or loading
   }
 
+  const handleGameUpdate = async (gameId, updatedGameState) => {
+    const gameRef = ref(db, `games/${gameId}`);
+    try {
+      await update(gameRef, updatedGameState);
+    } catch (err) {
+      console.error("Error updating game state:", err);
+      // Optionally, set an error state here to display to the user
+    }
+  };
+
   // Render different game components based on game.gameType
   switch (game.gameType) {
     case 'Tic-Tac-Toe':
-      return <TicTacToeGame gameId={gameId} initialGameState={game} />;
+      return <TicTacToeGame gameId={gameId} initialGameState={game} onGameUpdate={handleGameUpdate} />;
     case 'Rock, Paper, Scissors':
-      return <RockPaperScissorsGame gameId={gameId} initialGameState={game} />;
-    // Add more cases for other game types
+      return <RockPaperScissorsGame gameId={gameId} initialGameState={game} onGameUpdate={handleGameUpdate} />;
+    case 'Connect Four':
+      return <ConnectFourGame gameId={gameId} initialGameState={game} onGameUpdate={handleGameUpdate} />;
     default:
       return (
         <Box sx={{ textAlign: 'center', mt: 4 }}>

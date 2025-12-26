@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -28,6 +28,11 @@ export default function AppAppBar() {
   const { user, profile, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
   const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isMenuOpen = Boolean(anchorEl);
   const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
@@ -102,18 +107,13 @@ export default function AppAppBar() {
       open={isMobileMenuOpen}
       onClose={handleMobileMenuClose}
     >
-      <MenuItem component={Link} href="/lobbies">
+      <MenuItem component={Link} href="/lobbies" onClick={handleMobileMenuClose}>
         <ListItemIcon>
           <CasinoIcon fontSize="small" />
         </ListItemIcon>
         <p>Lobbies</p>
       </MenuItem>
-      <MenuItem component={Link} href="/settings">
-        <ListItemIcon>
-          <SettingsIcon fontSize="small" />
-        </ListItemIcon>
-        <p>Settings</p>
-      </MenuItem>
+      
       <MenuItem onClick={handleProfileMenuOpen}>
         <IconButton
           size="large"
@@ -151,7 +151,6 @@ export default function AppAppBar() {
                 <Button color="inherit" startIcon={<CasinoIcon />}>Lobbies</Button>
               </Link>
             )}
-            <ThemeSwitcher />
             {user && (
               <IconButton
                 size="large"
@@ -170,8 +169,7 @@ export default function AppAppBar() {
             )}
           </Box>
           <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
-            <ThemeSwitcher />
-            {user && (
+            {mounted && user && (
               <IconButton
                 size="large"
                 aria-label="show more"

@@ -13,6 +13,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import PersonIcon from '@mui/icons-material/Person'; // For display name icon
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import ThemeSwitcher from './ThemeSwitcher';
 
 export default function SettingsPage() {
   const { user, profile, refreshSession } = useAuth();
@@ -130,7 +131,7 @@ export default function SettingsPage() {
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
+      <Typography variant="h4" component="h1" gutterBottom color="text.primary">
         Settings
       </Typography>
 
@@ -256,6 +257,18 @@ export default function SettingsPage() {
               </Alert>
             )}
             {/* Future privacy and security settings options will go here */}
+          </List>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ mt: 4 }}>
+        <CardHeader title="Appearance Settings" />
+        <CardContent>
+          <List>
+            <ListItem>
+              <ListItemText id="theme-switcher-label" primary="Dark Mode" />
+              <ThemeSwitcher />
+            </ListItem>
           </List>
         </CardContent>
       </Card>

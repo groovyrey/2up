@@ -27,6 +27,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports'; // New import for Connect Four icon
 import CreateIcon from '@mui/icons-material/Create';
 
 const gameTypes = [
@@ -39,6 +40,11 @@ const gameTypes = [
     name: 'Rock, Paper, Scissors',
     icon: <SportsKabaddiIcon fontSize="large" />,
     description: 'A simple game of choices. Best out of three rounds!',
+  },
+  {
+    name: 'Connect Four',
+    icon: <SportsEsportsIcon fontSize="large" />,
+    description: 'Drop your discs and try to get four in a row!',
   },
 ];
 
