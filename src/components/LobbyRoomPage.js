@@ -126,7 +126,23 @@ export default function LobbyRoomPage({ lobbyId }) {
     return () => {
       if (presenceUnsubscribe.current) presenceUnsubscribe.current();
       if (didJoin.current) {
-        remove(ref(db, `lobbies/${lobbyId}/players/${user.uid}`));
+        // Use a transaction to safely check and potentially delete the lobby
+        runTransaction(ref(db, `lobbies/${lobbyId}`), (currentLobby) => {
+          if (currentLobby) {
+            const players = currentLobby.players || {};
+            const currentPlayerCount = Object.keys(players).length;
+
+            // If the current user is the only player, delete the entire lobby
+            if (currentPlayerCount === 1 && players[user.uid]) {
+              return null; // Returning null in a transaction deletes the data
+            } else if (players[user.uid]) {
+              // Otherwise, just remove the current player
+              delete players[user.uid];
+              currentLobby.players = players;
+            }
+          }
+          return currentLobby; // Return the updated lobby or null for deletion
+        });
       }
     };
   }, [lobbyId, user, profile, router]);

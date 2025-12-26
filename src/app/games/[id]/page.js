@@ -67,7 +67,23 @@ export default function GameRoom() {
 
     return () => {
       unsubscribe();
-      remove(playerPresenceRef); // Explicitly remove presence on unmount
+      // Use a transaction to safely check and potentially delete the game
+      runTransaction(ref(db, `games/${gameId}`), (currentGame) => {
+        if (currentGame) {
+          const presence = currentGame.presence || {};
+          const currentPlayerCount = Object.keys(presence).length;
+
+          // If the current user is the only one in presence, delete the entire game
+          if (currentPlayerCount === 1 && presence[user.uid]) {
+            return null; // Returning null in a transaction deletes the data
+          } else if (presence[user.uid]) {
+            // Otherwise, just remove the current user's presence
+            delete presence[user.uid];
+            currentGame.presence = presence;
+          }
+        }
+        return currentGame; // Return the updated game or null for deletion
+      });
     };
   }, [gameId, user, router]);
 
