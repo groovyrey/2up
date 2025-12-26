@@ -80,6 +80,7 @@ export default function CreateLobbyPage() {
       name: lobbyName,
       maxPlayers: 2,
       isPublic: isPublic === 'true',
+      ownerId: user.uid, // Add this back
       createdBy: {
         uid: user.uid,
         displayName: profile.displayName || 'Anonymous',

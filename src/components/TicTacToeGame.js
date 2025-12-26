@@ -454,7 +454,7 @@ export default function TicTacToeGame({ gameId, initialGameState }) {
           borderRadius: '8px',
           overflow: 'hidden',
         }}>
-          {Array(9).fill(null).map((_, i) => renderSquare(i))}
+          {gameState.board.map((_, i) => renderSquare(i))}
         </Box>
 
         <Box sx={{ mt: 4 }}>

@@ -132,12 +132,12 @@ export default function LobbyRoomPage({ lobbyId }) {
   const handleLeaveLobby = () => router.push('/lobbies');
 
   const handleDeleteLobby = async () => {
-    if (!user || !lobby || user.uid !== lobby.ownerId) return;
+    if (!user || !lobby || user.uid !== lobby.createdBy.uid) return;
     await remove(ref(db, `lobbies/${lobby.id}`));
   };
 
   const handleStartGame = async () => {
-    if (!user || !lobby || user.uid !== lobby.ownerId || lobby.status !== 'waiting') return;
+    if (!user || !lobby || user.uid !== lobby.createdBy.uid || lobby.status !== 'waiting') return;
     if (Object.keys(lobby.players || {}).length < lobby.maxPlayers) {
       setError(`Need ${lobby.maxPlayers} players to start the game.`);
       return;
@@ -152,7 +152,7 @@ export default function LobbyRoomPage({ lobbyId }) {
       );
 
       if (lobby.gameType === 'Tic-Tac-Toe') {
-        initialGameState = { board: Array(9).fill(null), players: playersData, currentPlayer: Object.keys(lobby.players)[0], status: 'playing', winner: null, moves: 0 };
+        initialGameState = { board: Array(9).fill(''), players: playersData, currentPlayer: Object.keys(lobby.players)[0], status: 'playing', winner: null, moves: 0 };
       } else if (lobby.gameType === 'Rock, Paper, Scissors') {
         initialGameState = { players: playersData, scores: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}), moves: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: null }), {}), roundWinner: null, status: 'playing' };
       } else if (lobby.gameType === 'Connect Four') {
@@ -200,7 +200,7 @@ export default function LobbyRoomPage({ lobbyId }) {
 
   if (!lobby) return null;
 
-  const isOwner = user && user.uid === lobby.ownerId;
+  const isOwner = user && user.uid === lobby.createdBy.uid;
   const players = lobby.players ? Object.entries(lobby.players) : [];
   const playerSlots = Array.from({ length: lobby.maxPlayers });
   const playerProgress = (players.length / lobby.maxPlayers) * 100;
@@ -271,7 +271,7 @@ export default function LobbyRoomPage({ lobbyId }) {
                           <Avatar src={player.photoURL} sx={{ width: 56, height: 56 }} />
                         </ListItemAvatar>
                         <ListItemText primary={<Typography variant="h6">{player.displayName}</Typography>} />
-                        {uid === lobby.ownerId && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 30 }} /></Tooltip>}
+                        {uid === lobby.createdBy.uid && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 30 }} /></Tooltip>}
                       </Card>
                     ) : (
                       <EmptyPlayerSlot>
