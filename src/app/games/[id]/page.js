@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { ref, onValue, update, remove, set, onDisconnect } from 'firebase/database';
+import { ref, onValue, update, remove, set, onDisconnect, runTransaction } from 'firebase/database';
 import { CircularProgress, Box, Typography, Button } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import TicTacToeGame from '@/components/TicTacToeGame';
