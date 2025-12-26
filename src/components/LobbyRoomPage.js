@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { ref, onValue, remove, set, onDisconnect, get, runTransaction, push } from 'firebase/database';
+import { ref, onValue, remove, set, onDisconnect, get, runTransaction, push, serverTimestamp } from 'firebase/database';
 import { useRouter } from 'next/navigation';
 import {
   Container,
@@ -11,28 +11,52 @@ import {
   Paper,
   CircularProgress,
   Box,
-  List,
-  ListItem,
-  ListItemText,
   Button,
   Grid,
   Chip,
   Avatar,
-  ListItemAvatar,
   Alert,
   LinearProgress,
   Card,
   CardContent,
   Divider,
-  Tooltip
+  Tooltip,
+  IconButton,
+  TextField,
+  ListItemAvatar,
+  ListItemText
 } from '@mui/material';
+import { styled, keyframes } from '@mui/material/styles';
 import GridOnIcon from '@mui/icons-material/GridOn';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
-import PersonIcon from '@mui/icons-material/Person';
+import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
-import CrownIcon from '@mui/icons-material/EmojiEvents'; // Crown icon for owner
+import CrownIcon from '@mui/icons-material/EmojiEvents';
+import GroupIcon from '@mui/icons-material/Group';
+import PublicIcon from '@mui/icons-material/Public';
+import LockIcon from '@mui/icons-material/Lock';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+
+const shimmer = keyframes`
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+`;
+
+const EmptyPlayerSlot = styled(Paper)(({ theme }) => ({
+  height: '100%',
+  minHeight: 80,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexDirection: 'column',
+  textAlign: 'center',
+  border: `2px dashed ${theme.palette.divider}`,
+  background: `linear-gradient(110deg, ${theme.palette.action.hover} 40%, ${theme.palette.background.paper} 50%, ${theme.palette.action.hover} 60%)`,
+  backgroundSize: '200% 100%',
+  animation: `${shimmer} 3s linear infinite`,
+}));
 
 export default function LobbyRoomPage({ lobbyId }) {
   const { user, profile, loading: authLoading } = useAuth();
@@ -40,11 +64,11 @@ export default function LobbyRoomPage({ lobbyId }) {
   const [lobby, setLobby] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const presenceUnsubscribe = useRef(null);
   const didJoin = useRef(false);
 
-  // Main listener for lobby data
   useEffect(() => {
     if (!lobbyId) return;
     const lobbyRef = ref(db, `lobbies/${lobbyId}`);
@@ -62,11 +86,9 @@ export default function LobbyRoomPage({ lobbyId }) {
       setError('Failed to load lobby data.');
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [lobbyId, router]);
 
-  // Presence system to join/leave lobby
   useEffect(() => {
     if (!lobbyId || !user || !profile) return;
 
@@ -75,7 +97,6 @@ export default function LobbyRoomPage({ lobbyId }) {
 
     get(lobbyRef).then((snapshot) => {
       if (!snapshot.exists()) return;
-
       const lobbyData = snapshot.val();
       const players = lobbyData.players || {};
 
@@ -91,11 +112,10 @@ export default function LobbyRoomPage({ lobbyId }) {
       presenceUnsubscribe.current = onValue(presenceRef, (snap) => {
         if (snap.val() === true) {
           onDisconnect(playerRef).remove();
-          const displayName = profile.displayName || user.displayName || 'Anonymous';
           set(playerRef, {
-            displayName: displayName,
-            photoURL: profile.photoURL || user.photoURL || '', // Store photoURL
-            joinedAt: Date.now()
+            displayName: profile.displayName || user.displayName || 'Anonymous',
+            photoURL: profile.photoURL || user.photoURL || '',
+            joinedAt: serverTimestamp()
           });
         }
       });
@@ -104,17 +124,7 @@ export default function LobbyRoomPage({ lobbyId }) {
     return () => {
       if (presenceUnsubscribe.current) presenceUnsubscribe.current();
       if (didJoin.current) {
-        const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-        runTransaction(lobbyRef, (currentData) => {
-          if (!currentData) return null;
-          const isOwner = user.uid === currentData.ownerId;
-          if (isOwner) return null;
-          if (Object.keys(currentData.players || {}).length <= 1) return null;
-          if (currentData.players && currentData.players[user.uid]) {
-            delete currentData.players[user.uid];
-          }
-          return currentData;
-        });
+        remove(ref(db, `lobbies/${lobbyId}/players/${user.uid}`));
       }
     };
   }, [lobbyId, user, profile, router]);
@@ -124,7 +134,6 @@ export default function LobbyRoomPage({ lobbyId }) {
   const handleDeleteLobby = async () => {
     if (!user || !lobby || user.uid !== lobby.ownerId) return;
     await remove(ref(db, `lobbies/${lobby.id}`));
-    router.push('/lobbies');
   };
 
   const handleStartGame = async () => {
@@ -143,31 +152,14 @@ export default function LobbyRoomPage({ lobbyId }) {
       );
 
       if (lobby.gameType === 'Tic-Tac-Toe') {
-        initialGameState = {
-          board: Array(9).fill(null),
-          players: playersData,
-          currentPlayer: Object.keys(lobby.players)[0],
-          status: 'playing',
-          winner: null,
-          moves: 0,
-        };
+        initialGameState = { board: Array(9).fill(null), players: playersData, currentPlayer: Object.keys(lobby.players)[0], status: 'playing', winner: null, moves: 0 };
       } else if (lobby.gameType === 'Rock, Paper, Scissors') {
-        initialGameState = {
-          players: playersData,
-          scores: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}),
-          moves: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: null }), {}),
-          roundWinner: null,
-          status: 'playing',
-        };
+        initialGameState = { players: playersData, scores: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: 0 }), {}), moves: Object.keys(playersData).reduce((acc, uid) => ({ ...acc, [uid]: null }), {}), roundWinner: null, status: 'playing' };
+      } else if (lobby.gameType === 'Connect Four') {
+        initialGameState = { board: Array(6).fill(Array(7).fill(null)), players: playersData, currentPlayer: Object.keys(lobby.players)[0], status: 'playing', winner: null };
       }
 
-      await set(newGameRef, {
-        lobbyId: lobby.id,
-        gameType: lobby.gameType,
-        createdAt: Date.now(),
-        ...initialGameState,
-      });
-
+      await set(newGameRef, { lobbyId: lobby.id, gameType: lobby.gameType, createdAt: serverTimestamp(), ...initialGameState });
       await runTransaction(ref(db, `lobbies/${lobby.id}`), (lobbyData) => {
         if (lobbyData) {
           lobbyData.gameId = gameId;
@@ -175,20 +167,22 @@ export default function LobbyRoomPage({ lobbyId }) {
         }
         return lobbyData;
       });
-      
-      // The gameId update on the lobby will trigger a redirect for all players
     } catch (e) {
       console.error('Failed to start game:', e);
       setError('An error occurred while trying to start the game.');
     }
   };
   
-  // Redirect to game if gameId appears on lobby
   useEffect(() => {
-    if (lobby?.gameId) {
-      router.push(`/games/${lobby.gameId}`);
-    }
+    if (lobby?.gameId) router.push(`/games/${lobby.gameId}`);
   }, [lobby, router]);
+
+  const copyLobbyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   if (authLoading || loading) {
     return <Container sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}><CircularProgress /></Container>;
@@ -197,11 +191,7 @@ export default function LobbyRoomPage({ lobbyId }) {
   if (error) {
     return (
       <Container maxWidth="sm" sx={{ mt: 8 }}>
-        <Alert severity="error" action={
-          <Button color="inherit" size="small" onClick={() => router.push('/lobbies')}>
-            Back to Lobbies
-          </Button>
-        }>
+        <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => router.push('/lobbies')}>Back to Lobbies</Button>}>
           {error}
         </Alert>
       </Container>
@@ -212,98 +202,86 @@ export default function LobbyRoomPage({ lobbyId }) {
 
   const isOwner = user && user.uid === lobby.ownerId;
   const players = lobby.players ? Object.entries(lobby.players) : [];
+  const playerSlots = Array.from({ length: lobby.maxPlayers });
   const playerProgress = (players.length / lobby.maxPlayers) * 100;
 
   const getGameIcon = (gameType) => {
     switch (gameType) {
       case 'Tic-Tac-Toe': return <GridOnIcon />;
       case 'Rock, Paper, Scissors': return <SportsKabaddiIcon />;
+      case 'Connect Four': return <SportsEsportsIcon />;
       default: return null;
     }
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={4} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ p: 3, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
-          <Grid container justifyContent="space-between" alignItems="center">
-            <Grid item>
-              <Typography variant="h4" component="h1">{lobby.name}</Typography>
-              <Box display="flex" alignItems="center" mt={1}>
-                {getGameIcon(lobby.gameType)}
-                <Typography variant="h6" sx={{ ml: 1 }}>{lobby.gameType}</Typography>
-              </Box>
-            </Grid>
-            <Grid item>
-              <Chip label={lobby.isPublic ? 'Public' : 'Private'} color="secondary" />
-            </Grid>
-          </Grid>
-        </Box>
-        
-        <Grid container>
-          <Grid item xs={12} md={7} sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>Waiting Room</Typography>
-            <Box sx={{ textAlign: 'center', p: 4, border: '2px dashed', borderColor: 'divider', borderRadius: 2 }}>
-              <Typography variant="h6">
-                Waiting for players...
-              </Typography>
-              <Typography color="text.secondary">
-                The game will begin once the lobby is full and the owner starts it.
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                <Box sx={{ width: '100%', mr: 1 }}>
-                  <LinearProgress variant="determinate" value={playerProgress} />
-                </Box>
-                <Box sx={{ minWidth: 35 }}>
-                  <Typography variant="body2" color="text.secondary">{`${players.length}/${lobby.maxPlayers}`}</Typography>
-                </Box>
-              </Box>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Paper elevation={4} sx={{ borderRadius: 3, p: { xs: 2, sm: 3, md: 4 } }}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={4}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>{lobby.name}</Typography>
+            <Box display="flex" alignItems="center" gap={2} mb={2}>
+              <Chip icon={getGameIcon(lobby.gameType)} label={lobby.gameType} variant="outlined" color="secondary" />
+              <Chip icon={lobby.isPublic ? <PublicIcon /> : <LockIcon />} label={lobby.isPublic ? 'Public' : 'Private'} variant="outlined" />
+            </Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>Lobby Controls</Typography>
+            <Box>
+              {isOwner && (
+                <Button variant="contained" color="success" startIcon={<PlayCircleFilledIcon />} onClick={handleStartGame} fullWidth disabled={players.length < lobby.maxPlayers} sx={{ mb: 1, py: 1.5 }}>
+                  Start Game
+                </Button>
+              )}
+              <Button variant="outlined" color="warning" startIcon={<ExitToAppIcon />} onClick={handleLeaveLobby} fullWidth sx={{ mb: 1 }}>
+                Leave Lobby
+              </Button>
+              {isOwner && (
+                <Button variant="text" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteLobby} fullWidth>
+                  Delete Lobby
+                </Button>
+              )}
+            </Box>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom>Invite Link</Typography>
+            <Box display="flex" alignItems="center">
+              <TextField value={window.location.href} fullWidth variant="outlined" size="small" disabled />
+              <Tooltip title={copied ? "Copied!" : "Copy Link"}>
+                <IconButton onClick={copyLobbyLink}><ContentCopyIcon /></IconButton>
+              </Tooltip>
             </Box>
           </Grid>
 
-          <Grid item xs={12} md={5} sx={{ p: 3, bgcolor: 'background.paper' }}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Players</Typography>
-                <List dense>
-                  {players.map(([uid, player]) => (
-                    <ListItem key={uid} secondaryAction={
-                      uid === lobby.ownerId ? <Tooltip title="Lobby Owner"><CrownIcon color="warning" /></Tooltip> : null
-                    }>
-                      <ListItemAvatar>
-                        <Avatar src={player.photoURL}>
-                          {!player.photoURL && <PersonIcon />}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText primary={player.displayName} />
-                    </ListItem>
-                  ))}
-                </List>
-              </CardContent>
-              <Divider />
-              <Box sx={{ p: 2 }}>
-                {isOwner && (
-                  <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<PlayCircleFilledIcon />}
-                    onClick={handleStartGame}
-                    fullWidth
-                    disabled={players.length < lobby.maxPlayers}
-                  >
-                    Start Game
-                  </Button>
-                )}
-                <Button variant="outlined" color="warning" startIcon={<ExitToAppIcon />} onClick={handleLeaveLobby} fullWidth sx={{ mt: 1 }}>
-                  Leave Lobby
-                </Button>
-                {isOwner && (
-                  <Button variant="text" color="error" startIcon={<DeleteForeverIcon />} onClick={handleDeleteLobby} fullWidth sx={{ mt: 1 }}>
-                    Delete Lobby
-                  </Button>
-                )}
+          <Grid item xs={12} md={8}>
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <Typography variant="h5">Waiting for Players</Typography>
+              <Box display="flex" alignItems="center" justifyContent="center" gap={1} mt={1}>
+                <GroupIcon color="action" />
+                <Typography variant="body1" color="text.secondary">{`${players.length} / ${lobby.maxPlayers} players ready`}</Typography>
               </Box>
-            </Card>
+              <LinearProgress variant="determinate" value={playerProgress} sx={{ height: 8, borderRadius: 4, mt: 1 }} />
+            </Box>
+            <Grid container spacing={2}>
+              {playerSlots.map((_, index) => {
+                const [uid, player] = players[index] || [];
+                return (
+                  <Grid item xs={12} sm={6} key={index}>
+                    {player ? (
+                      <Card variant="outlined" sx={{ display: 'flex', alignItems: 'center', p: 2, borderRadius: 2 }}>
+                        <ListItemAvatar>
+                          <Avatar src={player.photoURL} sx={{ width: 56, height: 56 }} />
+                        </ListItemAvatar>
+                        <ListItemText primary={<Typography variant="h6">{player.displayName}</Typography>} />
+                        {uid === lobby.ownerId && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 30 }} /></Tooltip>}
+                      </Card>
+                    ) : (
+                      <EmptyPlayerSlot>
+                        <Typography variant="body1" color="text.secondary">Waiting...</Typography>
+                      </EmptyPlayerSlot>
+                    )}
+                  </Grid>
+                );
+              })}
+            </Grid>
           </Grid>
         </Grid>
       </Paper>

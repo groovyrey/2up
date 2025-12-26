@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { ref, onValue, get } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,20 +16,20 @@ import {
   CardActions,
   CircularProgress,
   Box,
-  IconButton,
   Tooltip,
   Chip,
   Paper,
   Alert,
   Avatar,
-  AvatarGroup
+  AvatarGroup,
+  Divider
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import PeopleIcon from '@mui/icons-material/People';
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 
 export default function LobbiesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -38,10 +38,10 @@ export default function LobbiesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchLobbies = useCallback(() => {
-    setLoading(true);
+  useEffect(() => {
     const lobbiesRef = ref(db, 'lobbies');
-    get(lobbiesRef).then((snapshot) => {
+    const unsubscribe = onValue(lobbiesRef, (snapshot) => {
+      setLoading(true);
       const lobbiesData = [];
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
@@ -49,30 +49,15 @@ export default function LobbiesPage() {
         });
       }
       setLobbies(lobbiesData.reverse());
-    }).catch((error) => {
-      console.error("Firebase read error:", error);
-      setError("Failed to load lobbies. Check database rules or connection.");
-    }).finally(() => {
       setLoading(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    fetchLobbies();
-    const lobbiesRef = ref(db, 'lobbies');
-    const unsubscribe = onValue(lobbiesRef, (snapshot) => {
-      const lobbiesData = [];
-      snapshot.forEach((childSnapshot) => {
-        lobbiesData.push({ id: childSnapshot.key, ...childSnapshot.val() });
-      });
-      setLobbies(lobbiesData.reverse());
     }, (error) => {
       console.error("Firebase read error:", error);
-      setError("Failed to load lobbies in real-time. Please refresh.");
+      setError("Failed to load lobbies in real-time. Please check your connection.");
+      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [fetchLobbies]);
+  }, []);
 
   const handleJoinLobby = async (lobby) => {
     if (!user) {
@@ -111,12 +96,12 @@ export default function LobbiesPage() {
   if (!user) {
     return (
       <Container component={Paper} elevation={3} sx={{ p: 4, mt: 8, textAlign: 'center' }}>
-        <Typography variant="h4" gutterBottom>Welcome!</Typography>
+        <Typography variant="h4" gutterBottom>Welcome to the Arena!</Typography>
         <Typography variant="body1" sx={{ mb: 3 }}>
-          Please log in to view available game lobbies or create your own.
+          Log in to challenge other players, join existing game lobbies, or create your own.
         </Typography>
         <Link href="/login" passHref>
-          <Button variant="contained" color="primary">Log In</Button>
+          <Button variant="contained" color="primary" size="large">Log In to Compete</Button>
         </Link>
       </Container>
     );
@@ -124,22 +109,15 @@ export default function LobbiesPage() {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
-          Game Lobbies
+          Open Lobbies
         </Typography>
-        <Box>
-          <Tooltip title="Refresh Lobbies">
-            <IconButton onClick={fetchLobbies} color="primary" disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Link href="/lobbies/create" passHref>
-            <Button variant="contained" color="primary" startIcon={<AddCircleOutlineIcon />}>
-              Create Lobby
-            </Button>
-          </Link>
-        </Box>
+        <Link href="/lobbies/create" passHref>
+          <Button variant="contained" color="primary" startIcon={<AddCircleOutlineIcon />}>
+            Create New Lobby
+          </Button>
+        </Link>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
@@ -147,50 +125,70 @@ export default function LobbiesPage() {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
       ) : lobbies.length > 0 ? (
-        <Grid container spacing={2}>
+        <Grid container spacing={3}>
           {lobbies.map((lobby) => {
             const players = lobby.players || {};
             const playerCount = Object.keys(players).length;
             const isFull = playerCount >= lobby.maxPlayers;
             const isJoined = user && players[user.uid];
+            const createdBy = lobby.createdBy || {};
 
             return (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={lobby.id}>
-                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderWidth: 1, '&:hover': { boxShadow: 3 } }}>
+              <Grid item xs={12} sm={6} md={4} key={lobby.id}>
+                <Card sx={{ 
+                  height: '100%', 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  borderRadius: 2,
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } 
+                }}>
                   <CardContent sx={{ flexGrow: 1, p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                      <Typography variant="h6" component="div" noWrap>
-                        {lobby.name}
-                      </Typography>
-                      <Tooltip title={lobby.isPublic ? 'Public' : 'Private'}>
-                        {lobby.isPublic ? <LockOpenIcon fontSize="small" color="action" /> : <LockIcon fontSize="small" color="disabled" />}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                      <Box>
+                        <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 'bold' }}>
+                          {lobby.name}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                           <Avatar src={createdBy.photoURL || ''} sx={{ width: 20, height: 20, fontSize: '0.7rem' }} />
+                           <Typography variant="caption">
+                             {createdBy.displayName || 'Anonymous'}
+                           </Typography>
+                        </Box>
+                      </Box>
+                      <Tooltip title={lobby.isPublic ? 'Public Lobby' : 'Private Lobby'}>
+                        {lobby.isPublic ? <LockOpenIcon color="action" /> : <LockIcon color="disabled" />}
                       </Tooltip>
                     </Box>
                     <Chip 
                       icon={<VideogameAssetIcon />} 
                       label={lobby.gameType || 'N/A'} 
                       size="small"
+                      color="secondary"
                       variant="outlined"
+                      sx={{ mb: 2 }}
                     />
-                  </CardContent>
-                  <CardActions sx={{ p: 2, pt: 0, justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 28, height: 28, fontSize: '0.8rem' } }}>
-                        {Object.values(players).map((p, i) => (
-                          <Avatar key={i} alt={p.displayName} src={p.photoURL || ''} />
-                        ))}
-                      </AvatarGroup>
-                      <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                        {playerCount}/{lobby.maxPlayers}
-                      </Typography>
+                    <Divider sx={{ my: 1 }} />
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, fontSize: '0.8rem', borderWidth: 2 } }}>
+                          {Object.values(players).map((p, i) => (
+                            <Tooltip key={i} title={p.displayName}>
+                              <Avatar alt={p.displayName} src={p.photoURL || ''} />
+                            </Tooltip>
+                          ))}
+                        </AvatarGroup>
+                        <Chip icon={<PeopleIcon />} label={`${playerCount}/${lobby.maxPlayers}`} />
                     </Box>
+                  </CardContent>
+                  <CardActions sx={{ p: 2, pt: 1, justifyContent: 'flex-end' }}>
                     <Button
-                      size="small"
+                      size="medium"
                       variant={isJoined ? "contained" : "outlined"}
+                      color="primary"
                       onClick={() => handleJoinLobby(lobby)}
                       disabled={isFull && !isJoined}
                     >
-                      {isJoined ? 'Enter' : 'Join'}
+                      {isJoined ? 'Enter Lobby' : 'Join'}
                     </Button>
                   </CardActions>
                 </Card>
@@ -199,14 +197,15 @@ export default function LobbiesPage() {
           })}
         </Grid>
       ) : (
-        <Paper elevation={2} sx={{ p: 6, textAlign: 'center', mt: 4 }}>
-          <Typography variant="h5" gutterBottom>No Lobbies Found</Typography>
-          <Typography variant="body1" sx={{ mb: 3 }}>
-            Be the first to start a new game!
+        <Paper elevation={0} sx={{ p: {xs: 3, sm: 6}, textAlign: 'center', mt: 4, backgroundColor: 'action.hover' }}>
+          <EmojiEventsIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+          <Typography variant="h5" gutterBottom>The Arena is Quiet</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            No active lobbies right now. Why not be the one to start the action?
           </Typography>
           <Link href="/lobbies/create" passHref>
-            <Button variant="contained" startIcon={<AddCircleOutlineIcon />}>
-              Create a New Lobby
+            <Button variant="contained" size="large" startIcon={<AddCircleOutlineIcon />}>
+              Create the First Lobby
             </Button>
           </Link>
         </Paper>
