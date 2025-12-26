@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { ref, onValue, update } from 'firebase/database';
 import { CircularProgress, Box, Typography, Button } from '@mui/material';
+import { useAuth } from '@/context/AuthContext';
 import TicTacToeGame from '@/components/TicTacToeGame';
 import RockPaperScissorsGame from '@/components/RockPaperScissorsGame';
 import ConnectFourGame from '@/components/ConnectFourGame';
@@ -13,6 +14,7 @@ export default function GameRoom() {
   const params = useParams();
   const router = useRouter();
   const { id: gameId } = params;
+  const { user } = useAuth(); // Get the current user
 
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function GameRoom() {
     return () => unsubscribe();
   }, [gameId]);
 
-  if (loading) {
+  if (loading || !user) { // Also wait for user data
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <CircularProgress />
@@ -93,7 +95,16 @@ export default function GameRoom() {
     case 'Rock, Paper, Scissors':
       return <RockPaperScissorsGame gameId={gameId} initialGameState={game} onGameUpdate={handleGameUpdate} />;
     case 'Connect Four':
-      return <ConnectFourGame gameId={gameId} initialGameState={game} onGameUpdate={handleGameUpdate} />;
+      return (
+        <ConnectFourGame
+          gameId={gameId}
+          initialGameState={game}
+          onGameUpdate={handleGameUpdate}
+          currentPlayerId={user.uid}
+          player1Id={game.player1Id}
+          player2Id={game.player2Id}
+        />
+      );
     default:
       return (
         <Box sx={{ textAlign: 'center', mt: 4 }}>
