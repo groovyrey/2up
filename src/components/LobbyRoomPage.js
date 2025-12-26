@@ -24,7 +24,9 @@ import {
   IconButton,
   TextField,
   ListItemAvatar,
-  ListItemText
+  ListItemText,
+  List,
+  ListItem
 } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
 import GridOnIcon from '@mui/icons-material/GridOn';
@@ -260,28 +262,33 @@ export default function LobbyRoomPage({ lobbyId }) {
               </Box>
               <LinearProgress variant="determinate" value={playerProgress} sx={{ height: 8, borderRadius: 4, mt: 1 }} />
             </Box>
-            <Grid container spacing={2}>
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="h6" gutterBottom>Players in Lobby</Typography>
+            <List sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
               {playerSlots.map((_, index) => {
                 const [uid, player] = players[index] || [];
                 return (
-                  <Grid item xs={12} sm={6} key={index}>
-                    {player ? (
-                      <Card variant="outlined" sx={{ display: 'flex', alignItems: 'center', p: 2, borderRadius: 2 }}>
-                        <ListItemAvatar>
-                          <Avatar src={player.photoURL} sx={{ width: 56, height: 56 }} />
-                        </ListItemAvatar>
-                        <ListItemText primary={<Typography variant="h6">{player.displayName}</Typography>} />
-                        {uid === lobby.createdBy.uid && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 30 }} /></Tooltip>}
-                      </Card>
-                    ) : (
-                      <EmptyPlayerSlot>
-                        <Typography variant="body1" color="text.secondary">Waiting...</Typography>
-                      </EmptyPlayerSlot>
-                    )}
-                  </Grid>
+                  <React.Fragment key={index}>
+                    <ListItem sx={{ py: 1.5, px: 2 }}>
+                      {player ? (
+                        <Card variant="outlined" sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderRadius: 2, width: '100%' }}>
+                          <ListItemAvatar>
+                            <Avatar src={player.photoURL} sx={{ width: 48, height: 48, mr: 1.5 }} />
+                          </ListItemAvatar>
+                          <ListItemText primary={<Typography variant="h6">{player.displayName}</Typography>} />
+                          {uid === lobby.createdBy.uid && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 28 }} /></Tooltip>}
+                        </Card>
+                      ) : (
+                        <EmptyPlayerSlot sx={{ width: '100%', py: 1.5 }}>
+                          <Typography variant="body1" color="text.secondary">Waiting...</Typography>
+                        </EmptyPlayerSlot>
+                      )}
+                    </ListItem>
+                    {index < playerSlots.length - 1 && <Divider component="li" />}
+                  </React.Fragment>
                 );
               })}
-            </Grid>
+            </List>
           </Grid>
         </Grid>
       </Paper>

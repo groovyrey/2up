@@ -22,7 +22,12 @@ import {
   Alert,
   Avatar,
   AvatarGroup,
-  Divider
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  IconButton
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
@@ -125,90 +130,104 @@ export default function LobbiesPage() {
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
       ) : lobbies.length > 0 ? (
-        <Grid container spacing={3}>
-          {lobbies.map((lobby) => {
-            const players = lobby.players || {};
-            const playerCount = Object.keys(players).length;
-            const isFull = playerCount >= lobby.maxPlayers;
-            const isJoined = user && players[user.uid];
-            const createdBy = lobby.createdBy || {};
+        <Box sx={{ mt: 3 }}> {/* Added Box wrapper here */}
+          <List sx={{ width: '100%', bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
+            {lobbies.map((lobby, index) => {
+              const players = lobby.players || {};
+              const playerCount = Object.keys(players).length;
+              const isFull = playerCount >= lobby.maxPlayers;
+              const isJoined = user && players[user.uid];
+              const createdBy = lobby.createdBy || {};
 
-            return (
-              <Grid item xs={12} sm={6} md={4} key={lobby.id}>
-                <Card sx={{ 
-                  height: '100%', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  borderRadius: 2,
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } 
-                }}>
-                  <CardContent sx={{ flexGrow: 1, p: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                      <Box>
-                        <Typography variant="h6" component="div" noWrap sx={{ fontWeight: 'bold' }}>
-                          {lobby.name}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                           <Avatar src={createdBy.photoURL || ''} sx={{ width: 20, height: 20, fontSize: '0.7rem' }} />
-                           <Typography variant="caption">
-                             {createdBy.displayName || 'Anonymous'}
-                           </Typography>
-                        </Box>
+              return (
+                <React.Fragment key={lobby.id}>
+                  <ListItem
+                    alignItems="flex-start"
+                    secondaryAction={
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <Tooltip title={lobby.isPublic ? 'Public Lobby' : 'Private Lobby'}>
+                          {lobby.isPublic ? <LockOpenIcon color="action" /> : <LockIcon color="disabled" />}
+                        </Tooltip>
+                        <Button
+                          size="small"
+                          variant={isJoined ? "contained" : "outlined"}
+                          color="primary"
+                          onClick={() => handleJoinLobby(lobby)}
+                          disabled={isFull && !isJoined}
+                          sx={{ mt: 1 }}
+                        >
+                          {isJoined ? 'Enter' : 'Join'}
+                        </Button>
                       </Box>
-                      <Tooltip title={lobby.isPublic ? 'Public Lobby' : 'Private Lobby'}>
-                        {lobby.isPublic ? <LockOpenIcon color="action" /> : <LockIcon color="disabled" />}
-                      </Tooltip>
-                    </Box>
-                    <Chip 
-                      icon={<VideogameAssetIcon />} 
-                      label={lobby.gameType || 'N/A'} 
-                      size="small"
-                      color="secondary"
-                      variant="outlined"
-                      sx={{ mb: 2 }}
+                    }
+                    sx={{
+                      py: 2,
+                      px: 3,
+                      transition: 'background-color 0.2s',
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                  >
+                    <ListItemAvatar sx={{ mr: 2 }}>
+                      <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, fontSize: '0.8rem' } }}>
+                        {Object.values(players).map((p, i) => (
+                          <Tooltip key={i} title={p.displayName}>
+                            <Avatar alt={p.displayName} src={p.photoURL || ''} />
+                          </Tooltip>
+                        ))}
+                      </AvatarGroup>
+                    </ListItemAvatar>
+                    <ListItemText
+                      component="div"
+                      primary={
+                        <Typography
+                          component="div"
+                          variant="h6"
+                          sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}
+                        >
+                          {lobby.name}
+                          <Chip
+                            icon={<VideogameAssetIcon />}
+                            label={lobby.gameType || 'N/A'}
+                            size="small"
+                            color="secondary"
+                            variant="outlined"
+                          />
+                        </Typography>
+                      }
+                      secondary={
+                        <React.Fragment>
+                          <Typography
+                            sx={{ display: 'block' }}
+                            component="span"
+                            variant="body2"
+                            color="text.secondary"
+                          >
+                            Created by: {createdBy.displayName || 'Anonymous'}
+                          </Typography>
+                          <Typography
+                            sx={{ display: 'block' }}
+                            component="span"
+                            variant="body2"
+                            color="text.secondary"
+                          >
+                            Players: {playerCount}/{lobby.maxPlayers}
+                          </Typography>
+                        </React.Fragment>
+                      }
                     />
-                    <Divider sx={{ my: 1 }} />
-                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, fontSize: '0.8rem', borderWidth: 2 } }}>
-                          {Object.values(players).map((p, i) => (
-                            <Tooltip key={i} title={p.displayName}>
-                              <Avatar alt={p.displayName} src={p.photoURL || ''} />
-                            </Tooltip>
-                          ))}
-                        </AvatarGroup>
-                        <Chip icon={<PeopleIcon />} label={`${playerCount}/${lobby.maxPlayers}`} />
-                    </Box>
-                  </CardContent>
-                  <CardActions sx={{ p: 2, pt: 1, justifyContent: 'flex-end' }}>
-                    <Button
-                      size="medium"
-                      variant={isJoined ? "contained" : "outlined"}
-                      color="primary"
-                      onClick={() => handleJoinLobby(lobby)}
-                      disabled={isFull && !isJoined}
-                    >
-                      {isJoined ? 'Enter Lobby' : 'Join'}
-                    </Button>
-                  </CardActions>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
+                  </ListItem>
+                  {index < lobbies.length - 1 && <Divider component="li" />}
+                </React.Fragment>
+              );
+            })}
+          </List>
+        </Box>
       ) : (
-        <Paper elevation={0} sx={{ p: {xs: 3, sm: 6}, textAlign: 'center', mt: 4, backgroundColor: 'action.hover' }}>
-          <EmojiEventsIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-          <Typography variant="h5" gutterBottom>The Arena is Quiet</Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-            No active lobbies right now. Why not be the one to start the action?
-          </Typography>
-          <Link href="/lobbies/create" passHref>
-            <Button variant="contained" size="large" startIcon={<AddCircleOutlineIcon />}>
-              Create the First Lobby
-            </Button>
-          </Link>
-        </Paper>
+        <Typography variant="h6" color="text.secondary" sx={{ textAlign: 'center', mt: 4 }}>
+          No lobbies found. Be the first to create one!
+        </Typography>
       )}
     </Container>
   );

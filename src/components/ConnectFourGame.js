@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Button, Typography, Grid, Paper } from '@mui/material';
 
 const ROWS = 6;
@@ -166,7 +166,7 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
       )}
       {!winner && !isDraw && (
         <Typography variant="subtitle1" color="text.secondary">
-          {isCurrentPlayerTurn ? "Your turn" : `Waiting for ${getPlayerName(currentPlayer)}`}
+          {isCurrentPlayerTurn ? "Your turn" : `Waiting for ${getPlayerName(currentPlayerUid === playersMap.current[PLAYER_1] ? PLAYER_1 : PLAYER_2)}`}
         </Typography>
       )}
 
