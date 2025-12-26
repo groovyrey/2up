@@ -202,7 +202,7 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
               key={cIdx}
               onClick={() => handleColumnClick(cIdx)}
               disabled={winner || isDraw || board[0][cIdx] !== EMPTY || !isCurrentPlayerTurn}
-              sx={{ minWidth: 50, width: 50, height: 30, p: 0, mx: 0.25 }}
+              sx={{ minWidth: 50, width: 50, height: 30, p: 0, mx: 0.5 }}
               variant="contained"
               color="primary"
             >

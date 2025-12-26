@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { ref, onValue, update } from 'firebase/database';
+import { ref, onValue, update, remove, set, onDisconnect } from 'firebase/database';
 import { CircularProgress, Box, Typography, Button } from '@mui/material';
 import { useAuth } from '@/context/AuthContext';
 import TicTacToeGame from '@/components/TicTacToeGame';
@@ -21,7 +21,7 @@ export default function GameRoom() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!gameId) {
+    if (!gameId || !user) {
       setLoading(false);
       return;
     }
@@ -30,17 +30,25 @@ export default function GameRoom() {
     const unsubscribe = onValue(gameRef, (snapshot) => {
       if (snapshot.exists()) {
         const gameData = { id: snapshot.key, ...snapshot.val() };
+        // Initialize board based on game type if missing
         if (!gameData.board) {
-          // Initialize board based on game type if missing
           if (gameData.gameType === 'Tic-Tac-Toe') {
             gameData.board = Array(9).fill('');
           } else if (gameData.gameType === 'Connect Four') {
-            // Use the initialBoard structure from ConnectFourGame
             gameData.board = Array(6).fill(0).map(() => Array(7).fill(0));
           }
-          // Add other game types here if they need initial board setup
         }
         setGame(gameData);
+
+        // Game End Detection and Deletion
+        if (gameData.status === 'finished' || gameData.status === 'draw' || gameData.winner) {
+          // Give a small delay before deleting to allow players to see the final state
+          setTimeout(() => {
+            remove(gameRef);
+            router.replace('/lobbies'); // Redirect after deletion
+          }, 5000); // 5 seconds delay
+        }
+
       } else {
         setError('Game not found or has ended.');
         setGame(null);
@@ -52,8 +60,16 @@ export default function GameRoom() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [gameId]);
+    // Player Presence
+    const playerPresenceRef = ref(db, `games/${gameId}/presence/${user.uid}`);
+    set(playerPresenceRef, true); // Set presence when user enters
+    onDisconnect(playerPresenceRef).remove(); // Remove presence on disconnect
+
+    return () => {
+      unsubscribe();
+      remove(playerPresenceRef); // Explicitly remove presence on unmount
+    };
+  }, [gameId, user, router]);
 
   if (loading || !user) { // Also wait for user data
     return (
