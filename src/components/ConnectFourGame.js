@@ -13,14 +13,20 @@ const initialBoard = Array(ROWS).fill(0).map(() => Array(COLS).fill(EMPTY));
 
 export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate, currentPlayerId, player1Id, player2Id }) {
   const [board, setBoard] = useState(initialGameState?.board || initialBoard);
-  const [currentPlayer, setCurrentPlayer] = useState(initialGameState?.currentPlayer || PLAYER_1);
+    const [currentPlayerUid, setCurrentPlayerUid] = useState(initialGameState?.currentPlayer || Object.keys(initialGameState.players)[0]); // Store UID
   const [winner, setWinner] = useState(initialGameState?.winner || null);
   const [isDraw, setIsDraw] = useState(initialGameState?.isDraw || false);
 
+  // Map player UIDs to PLAYER_1 and PLAYER_2 constants for board logic
+  const playersMap = useRef({});
+
   useEffect(() => {
-    if (initialGameState) {
+    if (initialGameState && initialGameState.players) {
+      const playerUids = Object.keys(initialGameState.players);
+      playersMap.current[PLAYER_1] = playerUids[0];
+      playersMap.current[PLAYER_2] = playerUids[1];
+
       // Ensure board is an array of arrays
-      // Function to convert Firebase object-like array to actual array
       const convertToArray = (obj) => {
         if (Array.isArray(obj)) {
           return obj.map(item => (typeof item === 'object' && item !== null) ? convertToArray(item) : item);
@@ -34,10 +40,10 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
 
       const loadedBoard = initialGameState.board
         ? convertToArray(initialGameState.board)
-        : initialBoard; // Fallback to initialBoard if board is null/undefined
+        : initialBoard;
 
       setBoard(loadedBoard);
-      setCurrentPlayer(initialGameState.currentPlayer);
+      setCurrentPlayerUid(initialGameState.currentPlayer); // Set current player as UID
       setWinner(initialGameState.winner);
       setIsDraw(initialGameState.isDraw);
     }
@@ -100,7 +106,9 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
   };
 
   const handleColumnClick = (col) => {
-    if (winner || isDraw || (currentPlayer === PLAYER_1 && currentPlayerId !== player1Id) || (currentPlayer === PLAYER_2 && currentPlayerId !== player2Id)) {
+    const playerMark = (currentPlayerUid === playersMap.current[PLAYER_1]) ? PLAYER_1 : PLAYER_2;
+
+    if (winner || isDraw || currentPlayerUid !== currentPlayerId) {
       return;
     }
 
@@ -108,7 +116,7 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
     let row = -1;
     for (let r = ROWS - 1; r >= 0; r--) {
       if (newBoard[r][col] === EMPTY) {
-        newBoard[r][col] = currentPlayer;
+        newBoard[r][col] = playerMark;
         row = r;
         break;
       }
@@ -119,11 +127,13 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
     const newWinner = checkWin(newBoard);
     const newIsDraw = !newWinner && checkDraw(newBoard);
 
-    const nextPlayer = currentPlayer === PLAYER_1 ? PLAYER_2 : PLAYER_1;
+    const nextPlayerUid = (currentPlayerUid === playersMap.current[PLAYER_1])
+      ? playersMap.current[PLAYER_2]
+      : playersMap.current[PLAYER_1];
 
     const updatedGameState = {
       board: newBoard,
-      currentPlayer: newWinner || newIsDraw ? currentPlayer : nextPlayer, // Keep current player if game ends
+      currentPlayer: newWinner || newIsDraw ? currentPlayerUid : nextPlayerUid, // Keep current player if game ends
       winner: newWinner,
       isDraw: newIsDraw,
     };
@@ -138,28 +148,21 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
   };
 
   const getPlayerName = (playerNum) => {
-    if (playerNum === PLAYER_1) return 'Player 1';
-    if (playerNum === PLAYER_2) return 'Player 2';
-    return '';
+    const uid = playersMap.current[playerNum];
+    return initialGameState.players[uid]?.displayName || `Player ${playerNum}`;
   };
 
-  const getPlayerId = (playerNum) => {
-    if (playerNum === PLAYER_1) return player1Id;
-    if (playerNum === PLAYER_2) return player2Id;
-    return '';
-  };
-
-  const isCurrentPlayerTurn = (currentPlayer === PLAYER_1 && currentPlayerId === player1Id) || (currentPlayer === PLAYER_2 && currentPlayerId === player2Id);
+  const isCurrentPlayerTurn = currentPlayerUid === currentPlayerId;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 4 }}>
       <Typography variant="h4" gutterBottom>Connect Four</Typography>
       {winner ? (
-        <Typography variant="h5" color="primary">Winner: {getPlayerName(winner)}!</Typography>
+        <Typography variant="h5" color="primary">Winner: {initialGameState.players[playersMap.current[winner]]?.displayName}!</Typography>
       ) : isDraw ? (
         <Typography variant="h5" color="text.secondary">It's a Draw!</Typography>
       ) : (
-        <Typography variant="h5">Current Turn: {getPlayerName(currentPlayer)}</Typography>
+        <Typography variant="h5">Current Turn: {getPlayerName(currentPlayerUid === playersMap.current[PLAYER_1] ? PLAYER_1 : PLAYER_2)}</Typography>
       )}
       {!winner && !isDraw && (
         <Typography variant="subtitle1" color="text.secondary">
@@ -182,10 +185,9 @@ export default function ConnectFourGame({ gameId, initialGameState, onGameUpdate
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      cursor: 'pointer',
+                      // cursor: 'pointer', // Removed as clicks are handled by column buttons
                       border: '1px solid #555',
                     }}
-                    onClick={() => handleColumnClick(cIdx)}
                   >
                     {/* Piece */}
                   </Paper>
