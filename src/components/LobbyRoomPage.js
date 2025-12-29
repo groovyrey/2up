@@ -35,11 +35,12 @@ import SportsEsportsIcon from '@mui/icons-material/SportsEsports';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import PlayCircleFilledIcon from '@mui/icons-material/PlayCircleFilled';
-import CrownIcon from '@mui/icons-material/EmojiEvents';
 import GroupIcon from '@mui/icons-material/Group';
 import PublicIcon from '@mui/icons-material/Public';
 import LockIcon from '@mui/icons-material/Lock';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 
 const shimmer = keyframes`
   0% { background-position: -200% 0; }
@@ -117,7 +118,8 @@ export default function LobbyRoomPage({ lobbyId }) {
           set(playerRef, {
             displayName: profile.displayName || user.displayName || 'Anonymous',
             photoURL: profile.photoURL || user.photoURL || '',
-            joinedAt: serverTimestamp()
+            joinedAt: serverTimestamp(),
+            isReady: user.uid === lobbyData.createdBy.uid // Owner is ready by default
           });
         }
       });
@@ -131,6 +133,11 @@ export default function LobbyRoomPage({ lobbyId }) {
           if (currentLobby) {
             const players = currentLobby.players || {};
             const currentPlayerCount = Object.keys(players).length;
+
+            // Check if the leaving user is the lobby owner
+            if (user.uid === currentLobby.createdBy.uid) {
+              return null; // Delete the entire lobby if the owner leaves
+            }
 
             // If the current user is the only player, delete the entire lobby
             if (currentPlayerCount === 1 && players[user.uid]) {
@@ -147,7 +154,29 @@ export default function LobbyRoomPage({ lobbyId }) {
     };
   }, [lobbyId, user, profile, router]);
 
+  // Effect to ensure the lobby owner is always marked as ready
+  useEffect(() => {
+    if (!lobby || !user || !profile) return;
+
+    if (user.uid === lobby.createdBy.uid) {
+      const currentPlayer = lobby.players && lobby.players[user.uid];
+      if (currentPlayer && !currentPlayer.isReady) {
+        const playerRef = ref(db, `lobbies/${lobbyId}/players/${user.uid}`);
+        set(playerRef, { ...currentPlayer, isReady: true });
+      }
+    }
+  }, [lobby, user, profile, lobbyId]);
+
   const handleLeaveLobby = () => router.push('/lobbies');
+
+  const handleToggleReady = async () => {
+    if (!user || !lobby) return;
+    const playerRef = ref(db, `lobbies/${lobbyId}/players/${user.uid}`);
+    const currentPlayer = lobby.players[user.uid];
+    if (currentPlayer) {
+      await set(playerRef, { ...currentPlayer, isReady: !currentPlayer.isReady });
+    }
+  };
 
   const handleDeleteLobby = async () => {
     if (!user || !lobby || user.uid !== lobby.createdBy.uid) return;
@@ -156,8 +185,9 @@ export default function LobbyRoomPage({ lobbyId }) {
 
   const handleStartGame = async () => {
     if (!user || !lobby || user.uid !== lobby.createdBy.uid || lobby.status !== 'waiting') return;
-    if (Object.keys(lobby.players || {}).length < lobby.maxPlayers) {
-      setError(`Need ${lobby.maxPlayers} players to start the game.`);
+    const allPlayersReady = Object.values(lobby.players || {}).every(player => player.isReady);
+    if (Object.keys(lobby.players || {}).length < lobby.maxPlayers || !allPlayersReady) {
+      setError(`Need ${lobby.maxPlayers} players and all players must be ready to start the game.`);
       return;
     }
 
@@ -221,6 +251,8 @@ export default function LobbyRoomPage({ lobbyId }) {
   const isOwner = user && user.uid === lobby.createdBy.uid;
   const players = lobby.players ? Object.entries(lobby.players) : [];
   const playerSlots = Array.from({ length: lobby.maxPlayers });
+  const readyPlayers = Object.values(lobby.players || {}).filter(player => player.isReady).length;
+  const allPlayersReady = Object.values(lobby.players || {}).every(player => player.isReady);
   const playerProgress = (players.length / lobby.maxPlayers) * 100;
 
   const getGameIcon = (gameType) => {
@@ -246,8 +278,20 @@ export default function LobbyRoomPage({ lobbyId }) {
             <Typography variant="h6" gutterBottom>Lobby Controls</Typography>
             <Box>
               {isOwner && (
-                <Button variant="contained" color="success" startIcon={<PlayCircleFilledIcon />} onClick={handleStartGame} fullWidth disabled={players.length < lobby.maxPlayers} sx={{ mb: 1, py: 1.5 }}>
+                <Button variant="contained" color="success" startIcon={<PlayCircleFilledIcon />} onClick={handleStartGame} fullWidth disabled={players.length < lobby.maxPlayers || !allPlayersReady} sx={{ mb: 1, py: 1.5 }}>
                   Start Game
+                </Button>
+              )}
+              {!isOwner && user && lobby.players && lobby.players[user.uid] && (
+                <Button
+                  variant="contained"
+                  color={lobby.players[user.uid].isReady ? "secondary" : "primary"}
+                  startIcon={lobby.players[user.uid].isReady ? <CheckCircleIcon /> : <RadioButtonUncheckedIcon />}
+                  onClick={handleToggleReady}
+                  fullWidth
+                  sx={{ mb: 1, py: 1.5 }}
+                >
+                  {lobby.players[user.uid].isReady ? "Ready!" : "Set Ready"}
                 </Button>
               )}
               <Button variant="outlined" color="warning" startIcon={<ExitToAppIcon />} onClick={handleLeaveLobby} fullWidth sx={{ mb: 1 }}>
@@ -274,7 +318,7 @@ export default function LobbyRoomPage({ lobbyId }) {
               <Typography variant="h5">Waiting for Players</Typography>
               <Box display="flex" alignItems="center" justifyContent="center" gap={1} mt={1}>
                 <GroupIcon color="action" />
-                <Typography variant="body1" color="text.secondary">{`${players.length} / ${lobby.maxPlayers} players ready`}</Typography>
+                <Typography variant="body1" color="text.secondary">{`${players.length} / ${lobby.maxPlayers} players joined (${readyPlayers} ready)`}</Typography>
               </Box>
               <LinearProgress variant="determinate" value={playerProgress} sx={{ height: 8, borderRadius: 4, mt: 1 }} />
             </Box>
@@ -292,7 +336,15 @@ export default function LobbyRoomPage({ lobbyId }) {
                             <Avatar src={player.photoURL} sx={{ width: 48, height: 48, mr: 1.5 }} />
                           </ListItemAvatar>
                           <ListItemText primary={<Typography variant="h6">{player.displayName}</Typography>} />
-                          {uid === lobby.createdBy.uid && <Tooltip title="Lobby Owner"><CrownIcon color="warning" sx={{ fontSize: 28 }} /></Tooltip>}
+                          {player.isReady ? (
+                            uid === lobby.createdBy.uid ? (
+                              <Tooltip title="Lobby Host (Ready)"><Typography component="span" sx={{ fontSize: 28, mr: 1 }}>👑</Typography></Tooltip>
+                            ) : (
+                              <Tooltip title="Ready"><CheckCircleIcon color="success" sx={{ fontSize: 24, mr: 1 }} /></Tooltip>
+                            )
+                          ) : (
+                            <Tooltip title="Not Ready"><RadioButtonUncheckedIcon color="action" sx={{ fontSize: 24, mr: 1 }} /></Tooltip>
+                          )}
                         </Card>
                       ) : (
                         <EmptyPlayerSlot sx={{ width: '100%', py: 1.5 }}>

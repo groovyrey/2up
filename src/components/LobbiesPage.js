@@ -34,7 +34,8 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import PeopleIcon from '@mui/icons-material/People';
 import VideogameAssetIcon from '@mui/icons-material/VideogameAsset';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+
+import PasswordModal from './PasswordModal';
 
 export default function LobbiesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -42,6 +43,10 @@ export default function LobbiesPage() {
   const [lobbies, setLobbies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [selectedLobby, setSelectedLobby] = useState(null);
+  const [passwordModalError, setPasswordModalError] = useState('');
+  const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
 
   useEffect(() => {
     const lobbiesRef = ref(db, 'lobbies');
@@ -82,16 +87,38 @@ export default function LobbiesPage() {
     }
 
     if (!lobby.isPublic) {
-      const password = prompt('This lobby is private. Please enter the password:');
-      if (password === null) return; 
-
-      if (lobby.password !== password) {
-        setError('Incorrect password.');
-        return;
-      }
+      setSelectedLobby(lobby);
+      setIsPasswordModalOpen(true);
+      return;
     }
 
     router.push(`/lobbies/${lobby.id}`);
+  };
+
+  const handleClosePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setSelectedLobby(null);
+    setPasswordModalError('');
+    setIsVerifyingPassword(false);
+  };
+
+  const handlePasswordSubmit = async (password) => {
+    if (!selectedLobby) return;
+
+    setIsVerifyingPassword(true);
+    setPasswordModalError('');
+
+    // In a real application, you would send the password to a secure API endpoint
+    // for verification. For this example, we'll compare it directly.
+    // IMPORTANT: Storing plain text passwords in Firebase is a security risk.
+    // This should be replaced with a hashed password comparison on a server.
+    if (selectedLobby.password === password) {
+      router.push(`/lobbies/${selectedLobby.id}`);
+      handleClosePasswordModal();
+    } else {
+      setPasswordModalError('Incorrect password.');
+    }
+    setIsVerifyingPassword(false);
   };
 
   if (authLoading) {
@@ -229,6 +256,14 @@ export default function LobbiesPage() {
           No lobbies found. Be the first to create one!
         </Typography>
       )}
+
+      <PasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={handleClosePasswordModal}
+        onSubmit={handlePasswordSubmit}
+        error={passwordModalError}
+        isLoading={isVerifyingPassword}
+      />
     </Container>
   );
 }
